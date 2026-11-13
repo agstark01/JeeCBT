@@ -97,7 +97,7 @@ describe("question instruction inference", () => {
 
   it("extracts explicit positive and negative mark values", () => {
     const analysis = detectQuestionRules([
-      paper("SECTION A\n+4 marks for correct answer and -1 mark for incorrect answer.\nQ.1 A question."),
+      paper("SECTION A (+4 marks for correct answer and -1 mark for incorrect answer)\nQ.1 A question."),
     ]);
     expect(analysis.rules[0].correctMarks).toBe(4);
     expect(analysis.rules[0].incorrectMarks).toBe(-1);
