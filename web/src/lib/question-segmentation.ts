@@ -24,7 +24,7 @@ const SUBJECT_HEADING =
   /^\s*(?:SUBJECT\s*[:\-]\s*)?(PHYSICS|CHEMISTRY|MATHS|MATHEMATICS)\s*$/i;
 
 const PAPER_HEADING = /^\s*(PAPER[\s-]*\d+)\s*$/i;
-const SECTION_HEADING = /^\s*(SECTION\s*[-:]?\s*[A-Z0-9IVX]+)\s*$/i;
+const SECTION_HEADING = /^\s*(SECTION\s*[-:]?\s*[A-Z0-9IVX]+)(?:\s*(?:[-:–—]|\()\s*(.*?)\)?)?\s*$/i;
 const END_MARKER = /^\s*END\s+OF\s+THE\s+QUESTION\s+PAPER\s*$/i;
 const OPTION_MARKER = /^\s*(?:\(([A-D])\)|([A-D])[.)]|\(([1-4])\)|([1-4])[.)])\s+/gm;
 const OPTION_LINE_MARKER = /^\s*(?:\([A-D]\)|[A-D][.)]|\([1-4]\)|[1-4][.)])(?:\s|$)/i;
