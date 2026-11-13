@@ -425,7 +425,7 @@ export default function App() {
               <div>
                 <div className="eyebrow">YOUR PERSONAL QUESTION BANK</div>
                 <h1>Bring your paper. <span>We'll prepare the test.</span></h1>
-                <p>Import a question paper and its answer key. They can be in one PDF or separate files.</p>
+                <p>Import one question paper per package. Include its separate answer-key PDFs in the same import, then repeat for each paper you want to combine.</p>
               </div>
               <div className="heading-stats">
                 <div><strong>{packages.length}</strong><span>Imported papers</span></div>
@@ -452,7 +452,7 @@ export default function App() {
                 >
                   <div className="upload-symbol"><UploadGlyph /></div>
                   <h3>Drop PDF files here</h3>
-                  <p>Question paper and answer key can be selected together.</p>
+                  <p>Choose one question paper with its associated answer key or keys. Import each additional paper as a separate package.</p>
                   <button className="button button-primary" onClick={() => fileInput.current?.click()} disabled={busy}>Browse PDFs</button>
                   <input
                     ref={fileInput}
