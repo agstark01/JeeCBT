@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   canVerifyAnswerMapping,
   evaluateAnswerMapping,
@@ -21,6 +21,61 @@ const subjectOptions: Array<{ value: Subject | ""; label: string }> = [
 ];
 
 
+function normalizeLegacyPackage(paperPackage: PaperPackage): PaperPackage {
+  const questionDocuments = paperPackage.documents.filter((document) => document.role === "question_paper");
+  return {
+    ...paperPackage,
+    candidates: paperPackage.candidates.map((candidate) => {
+      const sourceMatches = paperPackage.documents.filter((document) =>
+        document.filename === candidate.sourceFilename &&
+        document.pageCount >= candidate.sourcePage,
+      );
+      const sourceDocumentId = candidate.sourceDocumentId ??
+        (sourceMatches.length === 1 ? sourceMatches[0].id : undefined);
+      const sourceIsQuestionPaper = questionDocuments.some((document) => document.id === sourceDocumentId);
+      const targetDocumentId = candidate.targetDocumentId ??
+        (sourceIsQuestionPaper
+          ? sourceDocumentId
+          : questionDocuments.length === 1
+            ? questionDocuments[0].id
+            : undefined);
+      return {
+        ...candidate,
+        sourceDocumentId,
+        targetDocumentId,
+        mappings: candidate.mappings.map((mapping, index) => ({
+          ...mapping,
+          id: mapping.id ?? candidate.id + "-mapping-" + index,
+          sourceDocumentId: mapping.sourceDocumentId ?? sourceDocumentId,
+        })),
+      };
+    }),
+  };
+}
+
+function AnswerKeyPdfPreview({
+  document,
+  pageNumber,
+}: {
+  document: PaperPackage["documents"][number];
+  pageNumber: number;
+}) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(document.blob);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [document.id, document.blob]);
+  if (!url) return <div className="source-preview-empty">Preparing local key PDF preview…</div>;
+  const pageUrl = url + "#page=" + pageNumber + "&toolbar=0&navpanes=0";
+  return (
+    <div className="source-preview answer-key-source-preview">
+      <iframe title={document.filename + " answer key page " + pageNumber} src={pageUrl} />
+      <a href={pageUrl} target="_blank" rel="noreferrer">Open answer-key source page {pageNumber}</a>
+    </div>
+  );
+}
+
 function mappingStatusLabel(status: AnswerMapping["reviewStatus"]): string {
   return status === "verified" ? "Verified key" : status === "rejected" ? "Rejected" : "Needs review";
 }
@@ -36,7 +91,7 @@ export default function AnswerKeyReviewer({
   onBack,
   onSave,
 }: AnswerKeyReviewerProps) {
-  const [draftPackage, setDraftPackage] = useState<PaperPackage>(paperPackage);
+  const [draftPackage, setDraftPackage] = useState<PaperPackage>(() => normalizeLegacyPackage(paperPackage));
   const [filter, setFilter] = useState("");
   const [candidateFilter, setCandidateFilter] = useState("all");
   const [saving, setSaving] = useState(false);
@@ -99,6 +154,18 @@ export default function AnswerKeyReviewer({
       mappings: current.mappings.map((mapping) => ({
         ...mapping,
         linkedQuestionId: undefined,
+        reviewStatus: "proposed",
+      })),
+    }));
+  };
+
+  const setCandidateSource = (candidate: AnswerKeyCandidate, sourceDocumentId: string) => {
+    updateCandidate(candidate.id, (current) => ({
+      ...current,
+      sourceDocumentId: sourceDocumentId || undefined,
+      mappings: current.mappings.map((mapping) => ({
+        ...mapping,
+        sourceDocumentId: sourceDocumentId || undefined,
         reviewStatus: "proposed",
       })),
     }));
@@ -189,6 +256,17 @@ export default function AnswerKeyReviewer({
           </div>
 
           <div className="answer-candidate-target">
+            <label>Which PDF contains this answer-key entry?
+              <select
+                value={candidate.sourceDocumentId ?? ""}
+                onChange={(event) => setCandidateSource(candidate, event.target.value)}
+              >
+                <option value="">Choose source PDF…</option>
+                {draftPackage.documents.filter((document) => document.pageCount >= candidate.sourcePage).map((document) => (
+                  <option value={document.id} key={document.id}>{document.filename} · {document.role}</option>
+                ))}
+              </select>
+            </label>
             <label>Which question paper does this key belong to?
               <select
                 value={candidate.targetDocumentId ?? ""}
@@ -202,6 +280,13 @@ export default function AnswerKeyReviewer({
             </label>
             <small>Target selection is package-scoped. Answer keys are never connected to another imported package.</small>
           </div>
+          {draftPackage.documents.find((document) => document.id === candidate.sourceDocumentId) && (
+            <AnswerKeyPdfPreview
+              document={draftPackage.documents.find((document) => document.id === candidate.sourceDocumentId)!}
+              pageNumber={candidate.sourcePage}
+            />
+          )}
+
 
           <div className="answer-mapping-list">
             {candidate.mappings.map((originalMapping, mappingIndex) => {
