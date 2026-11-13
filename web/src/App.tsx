@@ -9,15 +9,23 @@ import {
   listPaperPackages,
   moveGuestPackagesToAccount,
   savePaperPackage,
+  saveExamAttempt,
+  listExamAttempts,
 } from "./lib/db";
 import { discoverAnswerKeys } from "./lib/answer-discovery";
 import { extractPdfLocally } from "./lib/pdf";
 import QuestionReviewer from "./QuestionReviewer";
+import AnswerKeyReviewer from "./AnswerKeyReviewer";
+import ExamRunner from "./ExamRunner";
+import ExamResults from "./ExamResults";
 import { segmentQuestions } from "./lib/question-segmentation";
 import {
   getQuestionTotal,
   TEST_SUBJECTS,
   validateTestDraft,
+  collectEligibleQuestions,
+  selectTestQuestions,
+  type EligibleTestQuestion,
   type SubjectQuestionCounts,
   type TestSubject,
 } from "./lib/test-builder";
@@ -25,9 +33,10 @@ import type {
   AnswerKeyCandidate,
   DocumentRole,
   PaperPackage,
+  ExamAttempt,
 } from "./types";
 
-type Tab = "import" | "library" | "builder" | "review";
+type Tab = "import" | "library" | "builder" | "review" | "answer-review" | "exam" | "results";
 
 interface PendingFile {
   file: File;
@@ -97,6 +106,11 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [selectedPackageId, setSelectedPackageId] = useState("");
   const [reviewPackageId, setReviewPackageId] = useState("");
+  const [answerReviewPackageId, setAnswerReviewPackageId] = useState("");
+  const [examQuestions, setExamQuestions] = useState<EligibleTestQuestion[]>([]);
+  const [examTitle, setExamTitle] = useState("JEE practice test");
+  const [latestAttempt, setLatestAttempt] = useState<ExamAttempt | null>(null);
+  const [scoringDefaults, setScoringDefaults] = useState({ correctMarks: 4, incorrectMarks: -1 });
   const [selectedSourcePackageIds, setSelectedSourcePackageIds] = useState<string[]>([]);
   const [subjects, setSubjects] = useState<TestSubject[]>([...TEST_SUBJECTS]);
   const [subjectQuestionCounts, setSubjectQuestionCounts] = useState<SubjectQuestionCounts>({
@@ -122,6 +136,10 @@ export default function App() {
     () => packages.find((item) => item.id === reviewPackageId),
     [packages, reviewPackageId],
   );
+  const answerReviewPackage = useMemo(
+    () => packages.find((item) => item.id === answerReviewPackageId),
+    [packages, answerReviewPackageId],
+  );
   const activeQuestionCounts = useMemo(
     () =>
       Object.fromEntries(
@@ -139,6 +157,22 @@ export default function App() {
     durationMinutes,
     shuffleQuestions,
   });
+
+  const eligibleQuestionPool = useMemo(
+    () => collectEligibleQuestions(packages, selectedSourcePackageIds),
+    [packages, selectedSourcePackageIds],
+  );
+  const eligibleQuestionCounts = useMemo(() => ({
+    PHYSICS: eligibleQuestionPool.filter((item) => item.question.subject === "PHYSICS").length,
+    CHEMISTRY: eligibleQuestionPool.filter((item) => item.question.subject === "CHEMISTRY").length,
+    MATHS: eligibleQuestionPool.filter((item) => item.question.subject === "MATHS" || item.question.subject === "MATHEMATICS").length,
+  }), [eligibleQuestionPool]);
+  const availabilityErrors = TEST_SUBJECTS.flatMap((subject) =>
+    activeQuestionCounts[subject] > eligibleQuestionCounts[subject]
+      ? [subject + ": requested " + activeQuestionCounts[subject] + ", but only " + eligibleQuestionCounts[subject] + " fully verified question/answer pair(s) are eligible."]
+      : [],
+  );
+
 
   useEffect(() => {
     const element = googleButton.current;
