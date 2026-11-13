@@ -23,7 +23,11 @@ const subjectOptions: Array<{ value: Subject | ""; label: string }> = [
 
 
 function normalizeLegacyPackage(paperPackage: PaperPackage): PaperPackage {
-  const questionDocuments = paperPackage.documents.filter((document) => document.role === "question_paper");
+  const designatedQuestionDocuments = paperPackage.documents.filter((document) => document.role === "question_paper");
+  const questionDocuments = designatedQuestionDocuments.length > 0
+    ? designatedQuestionDocuments
+    : paperPackage.documents.filter((document) => document.role === "unknown" &&
+      (paperPackage.questions ?? []).some((question) => question.sourceDocumentId === document.id));
   return {
     ...paperPackage,
     candidates: paperPackage.candidates.map((candidate) => {
@@ -100,10 +104,13 @@ export default function AnswerKeyReviewer({
   const [error, setError] = useState("");
   const [dirty, setDirty] = useState(false);
 
-  const questionDocuments = useMemo(
-    () => draftPackage.documents.filter((document) => document.role === "question_paper"),
-    [draftPackage.documents],
-  );
+  const questionDocuments = useMemo(() => {
+    const designated = draftPackage.documents.filter((document) => document.role === "question_paper");
+    return designated.length > 0
+      ? designated
+      : draftPackage.documents.filter((document) => document.role === "unknown" &&
+        (draftPackage.questions ?? []).some((question) => question.sourceDocumentId === document.id));
+  }, [draftPackage.documents, draftPackage.questions]);
 
   const mappingMatchCounts = useMemo(() => {
     const counts = new Map<string, number>();
