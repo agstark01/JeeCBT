@@ -621,7 +621,7 @@ export default function App() {
                   <li><span>1</span><div><strong>Read every page</strong><p>Text is extracted in your browser. No file is sent to a server.</p></div></li>
                   <li><span>2</span><div><strong>Find answer keys</strong><p>We look for embedded keys and separately uploaded answer tables.</p></div></li>
                   <li><span>3</span><div><strong>Review the results</strong><p>Detected answers remain proposals until you verify them.</p></div></li>
-                  <li><span>4</span><div><strong>Prepare your test</strong><p>Question segmentation and the timed exam runner are the next build stage.</p></div></li>
+                  <li><span>4</span><div><strong>Verify and take a test</strong><p>Review question text and answer keys, then launch a timed test and see your score.</p></div></li>
                 </ol>
                 <div className="privacy-note"><LockGlyph /><span>Files and extracted content are stored in this browser's IndexedDB. Clearing site data can remove them.</span></div>
               </aside>
@@ -680,6 +680,9 @@ export default function App() {
                     )}
                     {selectedPackage.warnings.map((warning) => <div className="warning-line" key={warning}><span>!</span>{warning}</div>)}
                     <div className="detail-actions">
+                      {selectedPackage.candidates.length > 0 && (
+                        <button className="button button-outline" onClick={() => { setAnswerReviewPackageId(selectedPackage.id); setTab("answer-review"); }}>Review answer keys</button>
+                      )}
                       <button className="button button-primary" onClick={() => void segmentPackageQuestions(selectedPackage.id)}>
                         {selectedPackage.questions?.length ? "Re-run segmentation" : "Segment questions"} <ArrowGlyph />
                       </button>
@@ -688,7 +691,7 @@ export default function App() {
                           Review {selectedPackage.questions.length} questions
                         </button>
                       ) : null}
-                      <button className="button button-outline" onClick={() => setTab("builder")}>Configure a test</button>
+                      <button className="button button-outline" onClick={() => setTab("builder")}>Build a test</button>
                     </div>
                     {selectedPackage.questions?.length ? (
                       <div className="review-readiness-note">
