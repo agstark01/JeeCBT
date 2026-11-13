@@ -163,6 +163,41 @@ h1 span { color: #7890bd; font-weight: 500; }
 .danger-zone strong { color: #8c4545; font-size: 10px; }.danger-zone p { color: #929ba6; font-size: 9px; margin: 4px 0 0; }
 .danger-outline { color: #a34e4e; border-color: #ecd8d8; font-size: 9px; }
 .coming-tag { color: #98702f; background: #fff6e8; border: 1px solid #f2e3c3; border-radius: 100px; font-size: 9px; font-weight: 700; padding: 7px 10px; }
+
+.builder-config-group { display: flex; flex-direction: column; gap: 12px; }
+.builder-group-heading { display: flex; align-items: start; gap: 10px; }
+.builder-group-heading > span { flex: 0 0 27px; height: 27px; display: grid; place-items: center; border-radius: 8px; background: #edf3ff; color: #3158a8; font-size: 9px; font-weight: 800; }
+.builder-group-heading h2 { margin: 1px 0 4px; font: 700 13px Inter, ui-sans-serif, sans-serif; }
+.builder-group-heading p { margin: 0; color: #8793a2; font-size: 10px; line-height: 1.45; }
+.source-options { display: flex; flex-direction: column; gap: 8px; }
+.source-option { display: flex; gap: 11px; align-items: center; padding: 11px 12px; border: 1px solid #e5e9ef; border-radius: 8px; background: #fff; cursor: pointer; }
+.source-option.selected { border-color: #9ab2e7; background: #f5f8ff; }
+.source-option > input { width: 15px; height: 15px; flex: 0 0 15px; accent-color: #2859c6; }
+.source-option-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.source-option-copy strong { font-size: 10px; color: #34435a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.source-option-copy small { color: #8994a3; font-size: 9px; line-height: 1.35; }
+.source-check { flex: 0 0 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: #e7f0ff; color: #2859c6; font-size: 11px; font-weight: 800; }
+.source-option:not(.selected) .source-check { background: #f3f5f8; }
+.builder-helper { margin: -2px 0 0; color: #8994a3; font-size: 9px; line-height: 1.5; }
+.subject-config-card { min-width: 0; border: 1px solid #e5e9ef; border-radius: 8px; padding: 9px; display: flex; flex-direction: column; gap: 10px; }
+.subject-config-card.checked { border-color: #9ab2e7; background: #f8faff; }
+.subject-config-card .subject-option { border: 0; padding: 0; background: transparent; }
+.subject-count-label { display: flex; flex-direction: column; gap: 5px; color: #8994a3; font-size: 9px; }
+.subject-count-input { width: 100%; min-width: 0; border: 1px solid #e0e6ee; border-radius: 6px; padding: 8px 9px; background: #fff; color: #34435a; font: inherit; font-size: 10px; }
+.subject-count-input:disabled { opacity: .45; background: #f3f5f8; }
+.requested-total { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #eef0f4; padding-top: 11px; color: #7c8999; font-size: 10px; }
+.requested-total strong { color: #2f4f8d; font: 700 17px Inter, ui-sans-serif, sans-serif; }
+.shuffle-option { display: flex; align-items: start; gap: 9px; padding: 12px; border: 1px solid #e5e9ef; border-radius: 8px; background: #fafbfd; cursor: pointer; }
+.shuffle-option > input { flex: 0 0 15px; width: 15px; height: 15px; margin: 2px 0 0; accent-color: #2859c6; }
+.shuffle-option > span { display: flex; flex-direction: column; gap: 4px; }
+.shuffle-option strong { color: #526176; font-size: 10px; }
+.shuffle-option small { color: #8994a3; font-size: 9px; line-height: 1.45; }
+.builder-validation { color: #8b682c; background: #fff9ed; padding: 9px 10px; border-radius: 7px; font-size: 9px; line-height: 1.5; }
+.summary-source-list { display: flex; flex-direction: column; gap: 8px; padding: 9px 0; border-bottom: 1px solid #eef0f4; }
+.summary-source { display: flex; flex-direction: column; gap: 3px; }
+.summary-source strong { color: #34435a; font-size: 9px; line-height: 1.4; }
+.summary-source span, .summary-muted { color: #8b96a4; font-size: 8px; line-height: 1.4; }
+
 .builder-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(250px, .8fr); gap: 15px; align-items: start; }
 .builder-form { padding: 22px; display: flex; flex-direction: column; gap: 18px; }
 .builder-form h2 { margin: 0; }
