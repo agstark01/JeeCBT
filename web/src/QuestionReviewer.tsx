@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import QuestionCapture from "./QuestionCapture";
 import type {
   PaperPackage,
   QuestionDraft,
@@ -199,6 +200,13 @@ export default function QuestionReviewer({
       };
       if (key === "questionNumber" || key === "subject") {
         next.answerKeyReference = undefined;
+      }
+      if (key === "questionType") {
+        next.questionTypeInference = {
+          source: "manual",
+          evidence: "Set manually in the question reviewer.",
+          confidence: 1,
+        };
       }
       return next;
     });
@@ -459,6 +467,15 @@ export default function QuestionReviewer({
                     <input value={"Block " + draft.blockNumber} readOnly />
                   </label>
                 </div>
+                {draft.questionTypeInference && (
+                  <div className="question-inference-note">
+                    <strong>Classification: {draft.questionTypeInference.source.replace("_", " ")}</strong>
+                    <span>{draft.questionTypeInference.evidence}</span>
+                    <small>Confidence {Math.round(draft.questionTypeInference.confidence * 100)}%</small>
+                    {draft.correctMarks !== undefined && <small>Correct: +{draft.correctMarks} marks</small>}
+                    {draft.incorrectMarks !== undefined && <small>Incorrect: {draft.incorrectMarks} marks</small>}
+                  </div>
+                )}
                 <label className="review-text-label">Extracted question text
                   <textarea value={draft.statementText} onChange={(event) => updateDraft("statementText", event.target.value)} rows={12} />
                 </label>
@@ -489,10 +506,22 @@ export default function QuestionReviewer({
             )}
           </div>
           {documentForDraft && draft && (
-            <div className="panel review-source-panel">
-              <div className="review-panel-title"><div><strong>Original PDF source</strong><span>{documentForDraft.filename} · page {draft.sourcePageStart}</span></div></div>
-              <PdfSourcePreview document={documentForDraft} pageNumber={draft.sourcePageStart} />
-            </div>
+            <>
+              <div className="panel review-capture-panel">
+                <div className="review-panel-title">
+                  <div><strong>Detected question capture</strong><span>Rendered from the original local PDF. Diagrams, options and page formatting remain intact.</span></div>
+                </div>
+                <QuestionCapture
+                  document={documentForDraft}
+                  regions={draft.sourceRegions ?? []}
+                  questionNumber={draft.questionNumber}
+                />
+              </div>
+              <div className="panel review-source-panel">
+                <div className="review-panel-title"><div><strong>Original PDF source</strong><span>{documentForDraft.filename} · page {draft.sourcePageStart}</span></div></div>
+                <PdfSourcePreview document={documentForDraft} pageNumber={draft.sourcePageStart} />
+              </div>
+            </>
           )}
         </div>
       </div>
