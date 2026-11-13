@@ -506,3 +506,11 @@ h1 span { color: #7890bd; font-weight: 500; }
 .block-assignment { flex-wrap: wrap; }
 .block-assignment button { flex: 0 0 auto; }
 .answer-key-source-preview iframe { height: 390px; }
+
+.exam-subject-breakdown { padding: 15px 17px; margin: 13px 0; }
+.exam-subject-breakdown h2 { margin: 0 0 10px; color: #293c59; font-size: 14px; }
+.exam-subject-table-wrap { overflow-x: auto; }
+.exam-subject-table { width: 100%; border-collapse: collapse; min-width: 620px; }
+.exam-subject-table th, .exam-subject-table td { padding: 9px 8px; border-bottom: 1px solid #edf0f4; text-align: left; color: #536176; font-size: 8px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.exam-subject-table th { color: #8793a2; font-weight: 800; background: #fafbfd; }
+.exam-subject-table td:first-child { color: #354966; font-weight: 800; }
