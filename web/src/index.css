@@ -317,3 +317,12 @@ h1 span { color: #7890bd; font-weight: 500; }
   .review-actions { align-items: stretch; flex-direction: column; }
   .review-actions .button { width: 100%; }
 }
+
+
+/* Visual question captures are generated from the local source PDF. */
+.review-capture-panel { padding: 15px; min-width: 0; }
+.question-capture-list { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 12px; }
+.question-capture { margin: 0; min-width: 0; border: 1px solid #e3e8ef; border-radius: 8px; overflow: hidden; background: #fbfcfe; }
+.question-capture img { display: block; width: 100%; max-height: 620px; object-fit: contain; object-position: top center; background: #f4f6f9; }
+.question-capture figcaption { padding: 8px 10px; color: #748196; font-size: 9px; border-top: 1px solid #e8edf3; }
+.question-capture-empty { padding: 18px; border: 1px dashed #dfe5ed; border-radius: 7px; color: #8994a3; font-size: 9px; line-height: 1.5; }
