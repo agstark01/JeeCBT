@@ -38,6 +38,10 @@ JEE Main and JEE Advanced are initial exam profiles, not hard-coded parser forma
 - **Server-authoritative exam time.** The backend owns the deadline. Refreshing or changing the client clock must not extend an attempt.
 - **Traceability.** Preserve source document, page number, extracted region, answer-key source, reviewer changes, and marking policy.
 
+## Data and privacy
+
+GitHub stores application code and documentation only. User PDFs, extracted questions, answer keys, attempts, and scores must never be committed. The recommended product direction is local-first browser storage with optional Google Drive backup for progress. See [Product architecture and data boundaries](docs/product-architecture.md) for the privacy model, Google sign-in/Drive separation, and CBT requirements.
+
 ## Initial stack
 
 - Python 3.11+
