@@ -35,6 +35,16 @@ At this stage these are configuration controls only. The importer has not yet cr
 
 See [the mixed-paper builder design](../docs/mixed-paper-test-builder.md) for the selection rules and the question-segmentation prerequisite.
 
+## Question segmentation and review
+
+After import, open a paper package in the library and choose **Segment questions**. The first local parser recognizes common line-start markers (`Q.1`, `Q1.`, `Question 1:`) and accumulates each question until the next marker. Each draft retains its source PDF, page range and numbering block.
+
+Open the review screen to edit the extracted text, question number, subject and question type. When the PDF does not contain explicit subject labels, questions remain unassigned; use the block-level or question-number-range assignment controls. The original PDF is previewed locally alongside the editable draft.
+
+A question marked verified has only had its question text and metadata reviewed. Answer-key candidates remain proposed mappings even when linked to a question. The current milestone does not verify answers, crop diagrams, or perform OCR. The exam runner remains disabled until these parts are addressed.
+
+The parser is intentionally marker-based rather than a universal PDF parser. Papers with unusual or inline markers, scanned pages, complex columns, shared instructions, or heavy diagram/table content still require manual review. See [the segmentation design and limitations](../docs/question-segmentation-review.md).
+
 ## Google sign-in (optional)
 
 Google sign-in uses Google's Identity Services JavaScript library. The browser verifies the returned ID token signature and its issuer, audience, and expiry against Google's public signing keys. The Google subject identifier is used only as a local IndexedDB namespace.
