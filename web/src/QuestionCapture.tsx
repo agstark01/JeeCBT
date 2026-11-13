@@ -4,6 +4,7 @@ import type { ExtractedDocument, QuestionCaptureRegion } from "./types";
 interface QuestionCaptureProps {
   document: ExtractedDocument;
   regions: QuestionCaptureRegion[];
+  optionRegions?: QuestionCaptureRegion[];
   questionNumber: number;
 }
 
@@ -11,11 +12,13 @@ interface RenderedCapture {
   key: string;
   pageNumber: number;
   dataUrl: string;
+  kind: "question" | "options";
 }
 
 export default function QuestionCapture({
   document,
   regions,
+  optionRegions,
   questionNumber,
 }: QuestionCaptureProps) {
   const [captures, setCaptures] = useState<RenderedCapture[]>([]);
@@ -26,7 +29,8 @@ export default function QuestionCapture({
     setCaptures([]);
     setError("");
 
-    if (regions.length === 0) return;
+    const allRegions = [...regions, ...(optionRegions ?? [])];
+    if (allRegions.length === 0) return;
 
     const render = async () => {
       const [pdfjs, worker] = await Promise.all([
@@ -40,7 +44,7 @@ export default function QuestionCapture({
 
       try {
         const rendered: RenderedCapture[] = [];
-        for (const [index, region] of regions.entries()) {
+        for (const [index, region] of allRegions.entries()) {
           const page = await pdf.getPage(region.pageNumber);
           const baseViewport = page.getViewport({ scale: 1 });
           const scale = Math.min(2.4, Math.max(1.25, 1500 / baseViewport.width));
@@ -68,6 +72,7 @@ export default function QuestionCapture({
             key: document.id + ":" + region.pageNumber + ":" + index,
             pageNumber: region.pageNumber,
             dataUrl: crop.toDataURL("image/jpeg", 0.94),
+            kind: region.kind,
           });
           pageCanvas.width = 0;
           pageCanvas.height = 0;
@@ -90,9 +95,9 @@ export default function QuestionCapture({
     return () => {
       cancelled = true;
     };
-  }, [document.id, document.blob, regions]);
+  }, [document.id, document.blob, regions, optionRegions]);
 
-  if (regions.length === 0) {
+  if (regions.length === 0 && (!optionRegions || optionRegions.length === 0)) {
     return (
       <div className="question-capture-empty">
         No crop geometry is available for this import. Re-import the PDF with the current version to enable question crops.
@@ -106,9 +111,9 @@ export default function QuestionCapture({
       {captures.length === 0 && !error && <div className="source-preview-empty">Rendering question crop locally…</div>}
       {captures.map((capture, index) => (
         <figure className="question-capture" key={capture.key}>
-          <img src={capture.dataUrl} alt={"Question " + questionNumber + " visual crop, page " + capture.pageNumber} />
+          <img src={capture.dataUrl} alt={(capture.kind === "options" ? "Options for question " : "Question ") + questionNumber + " visual crop, page " + capture.pageNumber} />
           <figcaption>
-            Question {questionNumber} · source page {capture.pageNumber}
+            {capture.kind === "options" ? "Options for question " : "Question "}{questionNumber} · source page {capture.pageNumber}
             {regions.length > 1 ? " · segment " + (index + 1) + " of " + regions.length : ""}
           </figcaption>
         </figure>
