@@ -1,4 +1,5 @@
 import { evaluateAnswerMapping, isMappingScoringEligible } from "./answer-review";
+import { isSupportedAnswerFormat } from "./scoring";
 import type { PaperPackage, QuestionDraft, ExtractedDocument } from "../types";
 
 export interface EligibleTestQuestion {
@@ -129,7 +130,7 @@ export function collectEligibleQuestions(
         }),
       );
 
-      if (matches.length !== 1) continue;
+      if (matches.length !== 1 || !isSupportedAnswerFormat(question, matches[0].mapping.answerRaw)) continue;
       const { candidate, mapping } = matches[0];
       eligible.push({
         packageId: paperPackage.id,
