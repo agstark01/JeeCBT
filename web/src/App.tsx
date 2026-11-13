@@ -715,6 +715,35 @@ export default function App() {
           />
         )}
 
+        {tab === "answer-review" && answerReviewPackage && (
+          <AnswerKeyReviewer
+            key={answerReviewPackage.id}
+            paperPackage={answerReviewPackage}
+            onBack={() => setTab("library")}
+            onSave={saveReviewedPackage}
+          />
+        )}
+
+        {tab === "exam" && examQuestions.length > 0 && (
+          <ExamRunner
+            ownerId={ownerId}
+            title={examTitle}
+            questions={examQuestions}
+            durationMinutes={durationMinutes}
+            defaults={scoringDefaults}
+            onComplete={completeExam}
+            onCancel={() => setTab("builder")}
+          />
+        )}
+
+        {tab === "results" && latestAttempt && (
+          <ExamResults
+            attempt={latestAttempt}
+            onBackToBuilder={() => setTab("builder")}
+            onBackToLibrary={() => setTab("library")}
+          />
+        )}
+
         {tab === "builder" && (
           <section className="page-section builder-section">
             <div className="page-heading simple-heading">
