@@ -752,7 +752,7 @@ export default function App() {
                 <h1>Build a mixed-paper test</h1>
                 <p>Combine papers from your library, set a subject-wise question quota and choose your time limit.</p>
               </div>
-              <span className="coming-tag">Question bank in development</span>
+              <span className="coming-tag">{eligibleQuestionPool.length} eligible verified question(s)</span>
             </div>
             <div className="builder-layout">
               <div className="panel builder-form">
@@ -835,6 +835,7 @@ export default function App() {
                       );
                     })}
                   </div>
+                  <div className="eligible-counts"><span>Eligible now</span><strong>Physics {eligibleQuestionCounts.PHYSICS} · Chemistry {eligibleQuestionCounts.CHEMISTRY} · Mathematics {eligibleQuestionCounts.MATHS}</strong></div>
                   <div className="requested-total"><span>Total questions in this test</span><strong>{requestedQuestionTotal}</strong></div>
                 </div>
 
@@ -863,18 +864,27 @@ export default function App() {
                       <span><strong>Shuffle questions</strong><small>Randomly select questions from the combined eligible pool, without duplicates.</small></span>
                     </label>
                   </div>
+                  <div className="scoring-defaults">
+                    <label>Default marks for correct
+                      <input type="number" step="0.5" value={scoringDefaults.correctMarks} onChange={(event) => setScoringDefaults((current) => ({ ...current, correctMarks: Number(event.target.value) }))} />
+                    </label>
+                    <label>Default marks for incorrect
+                      <input type="number" step="0.5" value={scoringDefaults.incorrectMarks} onChange={(event) => setScoringDefaults((current) => ({ ...current, incorrectMarks: Number(event.target.value) }))} />
+                    </label>
+                    <small>Question-specific marking instructions override these defaults. Unanswered questions score zero. Multiple-correct questions use exact-set matching.</small>
+                  </div>
                   <div className="builder-validation">
-                    {configurationErrors.length === 0
-                      ? "Configuration is valid. The selected question bank still needs segmentation and answer verification."
-                      : configurationErrors.join(" ")}
+                    {configurationErrors.length === 0 && availabilityErrors.length === 0
+                      ? "Ready to start. Every selected question has verified question text and a verified answer mapping."
+                      : [...configurationErrors, ...availabilityErrors].join(" ")}
                   </div>
                 </div>
 
-                <button className="button button-primary button-wide" disabled>
-                  Start examination <ArrowGlyph />
+                <button className="button button-primary button-wide" onClick={startTest} disabled={configurationErrors.length > 0 || availabilityErrors.length > 0}>
+                  Start timed examination <ArrowGlyph />
                 </button>
                 <div className="disabled-reason">
-                  The current importer extracts answer-key candidates, not complete question records. The exam cannot start until questions are segmented, reviewed and linked to the correct paper-specific answer key.
+                  Only questions marked verified and linked to a verified answer mapping in the same paper package are included. Ambiguous or unsupported records remain excluded.
                 </div>
               </div>
 
@@ -890,7 +900,7 @@ export default function App() {
                     : selectedSourcePackages.map((item) => (
                       <div className="summary-source" key={item.id}>
                         <strong>{item.title}</strong>
-                        <span>{item.candidates.length} answer-key candidate(s) · {item.candidates.reduce((sum, candidate) => sum + mappingCount(candidate), 0)} proposed mapping(s)</span>
+                        <span>{item.questions?.filter((question) => question.status === "verified").length ?? 0} verified question(s) · {item.candidates.reduce((sum, candidate) => sum + candidate.mappings.filter((mapping) => mapping.reviewStatus === "verified").length, 0)} verified key(s)</span>
                       </div>
                     ))}
                 </div>
