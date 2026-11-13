@@ -105,7 +105,7 @@ describe("question instruction inference", () => {
 
   it("infers question type from a descriptive section heading", () => {
     const analysis = detectQuestionRules([
-      paper("SECTION B (Multiple correct options)\\nQ.16 Choose the correct statements."),
+      paper("SECTION B (Multiple correct options)\nQ.16 Choose the correct statements."),
     ]);
     expect(analysis.rules[0]).toMatchObject({
       sectionLabel: "SECTION B",
