@@ -504,6 +504,10 @@ export default function App() {
           <button className={tab === "library" ? "nav-link active" : "nav-link"} onClick={() => setTab("library")}>My library <span className="nav-count">{packages.length}</span></button>
           <button className={tab === "builder" ? "nav-link active" : "nav-link"} onClick={() => setTab("builder")}>Build a test</button>
           {tab === "review" && <button className="nav-link active" onClick={() => setTab("review")}>Review questions</button>}
+          {tab === "answer-review" && <button className="nav-link active" onClick={() => setTab("answer-review")}>Review answer keys</button>}
+          {tab === "exam" && <button className="nav-link active" onClick={() => setTab("exam")}>In progress</button>}
+          {tab === "results" && <button className="nav-link active" onClick={() => setTab("results")}>Latest result</button>}
+          {latestAttempt && tab !== "results" && <button className="nav-link" onClick={() => setTab("results")}>Latest score</button>}
         </nav>
         <div className="account-area">
           {user ? (
