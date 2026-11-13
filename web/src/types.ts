@@ -114,7 +114,8 @@ export type QuestionTypeInferenceSource =
   | "document_rule"
   | "option_detection"
   | "manual"
-  | "unknown";
+  | "unknown"
+  | "conflict";
 
 export interface QuestionTypeInference {
   source: QuestionTypeInferenceSource;
@@ -146,6 +147,8 @@ export interface QuestionDraft {
   paperLabel?: string;
   questionType: QuestionType;
   questionTypeInference?: QuestionTypeInference;
+  correctMarks?: number;
+  incorrectMarks?: number;
   hasOptions?: boolean;
   optionLabels?: string[];
   statementText: string;
