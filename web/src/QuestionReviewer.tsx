@@ -196,7 +196,7 @@ export default function QuestionReviewer({
       const next = {
         ...current,
         [key]: value,
-        status: current.status === "rejected" ? "needs_review" as const : current.status,
+        status: current.status === "needs_review" ? "needs_review" as const : "needs_review" as const,
       };
       if (key === "questionNumber" || key === "subject") {
         next.answerKeyReference = undefined;
@@ -248,13 +248,13 @@ export default function QuestionReviewer({
   ) => {
     const nextQuestions = questions.map((question) =>
       question.sourceDocumentId === sourceDocumentId && question.blockNumber === blockNumber
-        ? { ...question, subject, status: question.status === "rejected" ? "needs_review" as const : question.status }
+        ? { ...question, subject, status: "needs_review" as const }
         : question,
     );
     try {
       await persistQuestions(nextQuestions);
       if (draft?.sourceDocumentId === sourceDocumentId && draft.blockNumber === blockNumber) {
-        setDraft({ ...draft, subject, status: draft.status === "rejected" ? "needs_review" : draft.status });
+        setDraft({ ...draft, subject, status: "needs_review" });
       }
       setMessage("Subject assigned to all questions in that numbering block.");
     } catch {
@@ -280,13 +280,13 @@ export default function QuestionReviewer({
     const matchedIds = new Set(matching.map((question) => question.id));
     const nextQuestions = questions.map((question) =>
       matchedIds.has(question.id)
-        ? { ...question, subject: rangeSubject, status: question.status === "rejected" ? "needs_review" as const : question.status }
+        ? { ...question, subject: rangeSubject, status: "needs_review" as const }
         : question,
     );
     try {
       await persistQuestions(nextQuestions);
       if (draft && matchedIds.has(draft.id)) {
-        setDraft({ ...draft, subject: rangeSubject, status: draft.status === "rejected" ? "needs_review" : draft.status });
+        setDraft({ ...draft, subject: rangeSubject, status: "needs_review" });
       }
       setMessage("Assigned " + matching.length + " question(s) to " + rangeSubject + ".");
     } catch {
@@ -305,7 +305,13 @@ export default function QuestionReviewer({
     : undefined;
 
   const dirty = Boolean(draft && selectedQuestion && JSON.stringify(draft) !== JSON.stringify(selectedQuestion));
-  const canVerify = Boolean(draft && draft.statementText.trim() && draft.subject !== "UNASSIGNED");
+  const canVerify = Boolean(
+    draft &&
+    Number.isInteger(draft.questionNumber) &&
+    draft.questionNumber > 0 &&
+    draft.statementText.trim() &&
+    draft.subject !== "UNASSIGNED",
+  );
 
   return (
     <section className="page-section review-section">
