@@ -1,7 +1,5 @@
 import type { DocumentRole, ExtractedDocument, ExtractedPage } from "../types";
 
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
-
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const MAX_PAGES = 400;
 const LINE_TOLERANCE = 2.5;
