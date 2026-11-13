@@ -6,6 +6,8 @@ __pycache__/
 .ruff_cache/
 .env
 .env.*
+!.env.example
+!**/.env.example
 uploads/
 *.pdf
 .DS_Store
