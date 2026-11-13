@@ -27,6 +27,7 @@ The reviewer provides:
 - an embedded local PDF preview at the question's first page;
 - a full visual question crop and a separate option-region crop rendered from the original PDF locally in the browser;
 - bulk subject assignment by numbering block;
+- block-level verification after subject and question-type classification, with an explicit confirmation;
 - bulk subject assignment by inclusive question-number range within a selected source PDF and optional block;
 - a separate Answer-key review workflow that reconciles each mapping against its source and target paper, resolves ambiguity, and requires independent verification.
 
