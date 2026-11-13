@@ -105,8 +105,10 @@ export function collectEligibleQuestions(
   const selectedIds = new Set(sourcePackageIds);
   const eligible: EligibleTestQuestion[] = [];
 
-  for (const paperPackage of packages) {
-    if (!selectedIds.has(paperPackage.id)) continue;
+  const orderedPackages = packages
+    .filter((paperPackage) => selectedIds.has(paperPackage.id))
+    .sort((left, right) => left.createdAt - right.createdAt);
+  for (const paperPackage of orderedPackages) {
     for (const question of paperPackage.questions ?? []) {
       if (
         question.status !== "verified" ||
@@ -158,7 +160,7 @@ export function selectTestQuestions(
   for (const subject of TEST_SUBJECTS) {
     const requested = questionCounts[subject];
     if (requested === 0) continue;
-    const pool = eligible.filter((item) => item.question.subject === subject);
+    const pool = eligible.filter((item) => item.question.subject === subject || (subject === "MATHS" && item.question.subject === "MATHEMATICS"));
     if (pool.length < requested) {
       shortages[subject] = { requested, available: pool.length };
       continue;
@@ -173,5 +175,6 @@ export function selectTestQuestions(
   if (shuffleQuestions) {
     return { questions: sampleWithoutReplacement(selected, selected.length, random), shortages };
   }
-  return { questions: selected, shortages };
+  const selectedIds = new Set(selected.map((item) => item.question.id));
+  return { questions: eligible.filter((item) => selectedIds.has(item.question.id)), shortages };
 }
