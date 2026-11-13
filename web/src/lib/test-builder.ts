@@ -1,4 +1,4 @@
-import { isMappingScoringEligible } from "./answer-review";
+import { evaluateAnswerMapping, isMappingScoringEligible } from "./answer-review";
 import type { PaperPackage, QuestionDraft, ExtractedDocument } from "../types";
 
 export interface EligibleTestQuestion {
@@ -120,20 +120,13 @@ export function collectEligibleQuestions(
       if (!sourceDocument) continue;
 
       const matches = paperPackage.candidates.flatMap((candidate) =>
-        candidate.mappings
-          .filter((mapping) =>
-            isMappingScoringEligible(paperPackage, candidate, mapping) &&
-            mapping.linkedQuestionId === question.id ||
-            (
-              isMappingScoringEligible(paperPackage, candidate, mapping) &&
-              !mapping.linkedQuestionId &&
-              candidate.targetDocumentId === question.sourceDocumentId &&
-              mapping.questionNumber === question.questionNumber &&
-              (!mapping.subject || mapping.subject === question.subject ||
-                (mapping.subject === "MATHEMATICS" && question.subject === "MATHS"))
-            ),
-          )
-          .map((mapping) => ({ candidate, mapping })),
+        candidate.mappings.flatMap((mapping) => {
+          if (!isMappingScoringEligible(paperPackage, candidate, mapping)) return [];
+          const reconciliation = evaluateAnswerMapping(paperPackage, candidate, mapping);
+          return reconciliation.selectedQuestion?.id === question.id
+            ? [{ candidate, mapping }]
+            : [];
+        }),
       );
 
       if (matches.length !== 1) continue;
