@@ -139,7 +139,10 @@ function parseSubjectTable(
       document.pages.some((page) => page.pageNumber === candidate.sourcePage)
     );
     const sourceDocumentId = sourceMatches.length === 1 ? sourceMatches[0].id : undefined;
-    const questionDocuments = documents.filter((document) => document.role === "question_paper");
+    const designatedQuestionDocuments = documents.filter((document) => document.role === "question_paper");
+    const questionDocuments = designatedQuestionDocuments.length > 0
+      ? designatedQuestionDocuments
+      : documents.filter((document) => document.role === "unknown");
     const sourceIsQuestionPaper = sourceDocumentId !== undefined &&
       questionDocuments.some((document) => document.id === sourceDocumentId);
     const targetDocumentId = sourceIsQuestionPaper
@@ -263,7 +266,10 @@ export function discoverAnswerKeys(
     }
   }
 
-  const questionDocuments = documents.filter((document) => document.role === "question_paper");
+  const designatedQuestionDocuments = documents.filter((document) => document.role === "question_paper");
+    const questionDocuments = designatedQuestionDocuments.length > 0
+      ? designatedQuestionDocuments
+      : documents.filter((document) => document.role === "unknown");
   return candidates.map((candidate) => {
     const sourceMatches = documents.filter((document) =>
       document.filename === candidate.sourceFilename &&
