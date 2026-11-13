@@ -1,12 +1,18 @@
 import type {
   ExtractedDocument,
+  ExtractedPage,
+  ExtractedTextLine,
+  QuestionCaptureRegion,
   QuestionDraft,
+  QuestionRule,
   QuestionSubject,
   Subject,
 } from "../types";
+import { applyQuestionRules, detectQuestionRules } from "./question-rules";
 
 export interface QuestionSegmentationResult {
   questions: QuestionDraft[];
+  rules: QuestionRule[];
   warnings: string[];
   sourceDocumentCount: number;
 }
@@ -20,6 +26,14 @@ const SUBJECT_HEADING =
 const PAPER_HEADING = /^\s*(PAPER[\s-]*\d+)\s*$/i;
 const SECTION_HEADING = /^\s*(SECTION\s*[-:]?\s*[A-Z0-9IVX]+)\s*$/i;
 const END_MARKER = /^\s*END\s+OF\s+THE\s+QUESTION\s+PAPER\s*$/i;
+const OPTION_MARKER = /^\s*(?:\(([A-D])\)|([A-D])[.)]|\(([1-4])\)|([1-4])[.)])\s+/gm;
+
+interface QuestionMarkerPosition {
+  question: QuestionDraft;
+  pageNumber: number;
+  line: ExtractedTextLine;
+  lineIndex: number;
+}
 
 function normalizeSubject(value: string): Subject {
   return value.toUpperCase() === "MATHEMATICS"
@@ -43,6 +57,108 @@ function newQuestionId(): string {
   return crypto.randomUUID();
 }
 
+function linesForPage(page: ExtractedPage): ExtractedTextLine[] {
+  if (page.lines?.length) return page.lines;
+  return page.text.split(/\r?\n/).map((text, index) => ({
+    text,
+    x: 0.04,
+    y: Math.min(0.94, 0.03 + index * 0.02),
+    width: 0.92,
+    height: 0.015,
+    columnIndex: 0,
+  }));
+}
+
+function columnBounds(
+  page: ExtractedPage,
+  columnIndex: number,
+): { x: number; width: number } {
+  if (page.columnSplit !== undefined) {
+    const split = Math.max(0.25, Math.min(0.75, page.columnSplit));
+    return columnIndex === 0
+      ? { x: 0.025, width: Math.max(0.2, split - 0.04) }
+      : { x: split + 0.015, width: Math.max(0.2, 0.96 - split) };
+  }
+  return { x: 0.035, width: 0.93 };
+}
+
+/**
+ * Crop regions are normalized descriptors, not raster images. Reviewers render
+ * the referenced local PDF page and crop it in a canvas, preserving diagrams,
+ * tables, options, equations and original typography without storing duplicate
+ * full-page bitmaps.
+ */
+function buildQuestionRegions(
+  document: ExtractedDocument,
+  markers: QuestionMarkerPosition[],
+): void {
+  for (let index = 0; index < markers.length; index += 1) {
+    const marker = markers[index];
+    const next = markers[index + 1];
+    const startPage = marker.pageNumber;
+    const endPage = Math.max(startPage, marker.question.sourcePageEnd);
+    const regions: QuestionCaptureRegion[] = [];
+
+    for (let pageNumber = startPage; pageNumber <= endPage; pageNumber += 1) {
+      const page = document.pages.find((item) => item.pageNumber === pageNumber);
+      if (!page) continue;
+      const bounds = columnBounds(page, marker.line.columnIndex);
+      let top = pageNumber === startPage
+        ? Math.max(0.015, marker.line.y - 0.012)
+        : 0.025;
+      let bottom = 0.975;
+
+      if (next?.pageNumber === pageNumber && next.line.columnIndex === marker.line.columnIndex) {
+        bottom = Math.max(top + 0.025, next.line.y - 0.012);
+      } else if (
+        next?.pageNumber === pageNumber &&
+        next.line.columnIndex !== marker.line.columnIndex
+      ) {
+        bottom = 0.975;
+      }
+
+      top = Math.min(top, 0.94);
+      bottom = Math.min(0.985, Math.max(top + 0.025, bottom));
+      regions.push({
+        pageNumber,
+        x: bounds.x,
+        y: top,
+        width: bounds.width,
+        height: bottom - top,
+        columnIndex: marker.line.columnIndex,
+        kind: "question",
+      });
+    }
+
+    marker.question.sourceRegions = regions;
+  }
+}
+
+function finishQuestion(
+  question: QuestionDraft | undefined,
+  currentLines: string[],
+  rules: QuestionRule[],
+): void {
+  if (!question) return;
+  question.statementText = currentLines.join("\n").trim();
+  const optionMatches = [...question.statementText.matchAll(OPTION_MARKER)];
+  const labels = optionMatches.map((match) => match[1] ?? match[2] ?? match[3] ?? match[4]);
+  question.hasOptions = labels.length > 0;
+  question.optionLabels = [...new Set(labels)];
+
+  const classification = applyQuestionRules(rules, {
+    sourceDocumentId: question.sourceDocumentId,
+    questionNumber: question.questionNumber,
+    sectionLabel: question.sectionLabel,
+    statementText: question.statementText,
+    hasOptions: question.hasOptions,
+  });
+  question.questionType = classification.questionType;
+  question.questionTypeInference = classification.inference;
+  question.correctMarks = classification.correctMarks;
+  question.incorrectMarks = classification.incorrectMarks;
+}
+
 export function segmentQuestions(
   documents: ExtractedDocument[],
 ): QuestionSegmentationResult {
@@ -50,19 +166,21 @@ export function segmentQuestions(
   const fallback = documents.filter((document) => document.role === "unknown");
   const sourceDocuments = designated.length > 0 ? designated : fallback;
   const warnings: string[] = [];
+  const ruleAnalysis = detectQuestionRules(documents);
+  warnings.push(...ruleAnalysis.warnings);
+  const questions: QuestionDraft[] = [];
 
   if (sourceDocuments.length === 0) {
     return {
       questions: [],
+      rules: ruleAnalysis.rules,
       warnings: [
+        ...warnings,
         "No document is labelled Question paper. Change the document role in the import workflow, then run segmentation again.",
       ],
       sourceDocumentCount: 0,
     };
   }
-
-  const questions: QuestionDraft[] = [];
-  let prefaceTextFound = false;
 
   for (const document of sourceDocuments) {
     let current: QuestionDraft | undefined;
@@ -73,10 +191,13 @@ export function segmentQuestions(
     let blockNumber = 1;
     let previousQuestionNumber: number | undefined;
     let scannedPages = 0;
+    let prefaceTextFound = false;
+    const documentQuestions: QuestionDraft[] = [];
+    const markerPositions: QuestionMarkerPosition[] = [];
 
     const finishCurrent = () => {
       if (!current) return;
-      current.statementText = currentLines.join("\n").trim();
+      finishQuestion(current, currentLines, ruleAnalysis.rules);
       if (current.statementText.length === 0) {
         warnings.push(
           document.filename + ": Q" + current.questionNumber +
@@ -84,6 +205,7 @@ export function segmentQuestions(
           " has no extracted text. Check the source page; it may be image-only.",
         );
       }
+      documentQuestions.push(current);
       questions.push(current);
       current = undefined;
       currentLines = [];
@@ -91,15 +213,14 @@ export function segmentQuestions(
 
     for (const page of document.pages) {
       if (page.likelyScanned) scannedPages += 1;
-      const lines = page.text.split(/\r?\n/);
+      const pageLines = linesForPage(page);
 
-      for (const rawLine of lines) {
-        const line = rawLine.trim();
+      for (let lineIndex = 0; lineIndex < pageLines.length; lineIndex += 1) {
+        const positioned = pageLines[lineIndex];
+        const line = positioned.text.trim();
         if (!line || isRepeatedPageFurniture(line)) continue;
 
         if (END_MARKER.test(line)) {
-          // A combined JEE Advanced PDF may contain multiple subject papers,
-          // each with its own end marker. End the current question, not the file.
           finishCurrent();
           continue;
         }
@@ -157,6 +278,12 @@ export function segmentQuestions(
             status: "needs_review",
             detectionMethod: "question_number_marker",
           };
+          markerPositions.push({
+            question: current,
+            pageNumber: page.pageNumber,
+            line: positioned,
+            lineIndex,
+          });
           previousQuestionNumber = questionNumber;
           const firstLineBody = questionMatch.groups.body.trim();
           if (firstLineBody) currentLines.push(firstLineBody);
@@ -167,14 +294,17 @@ export function segmentQuestions(
           currentLines.push(line);
           current.sourcePageEnd = page.pageNumber;
         } else if (line.length > 24) {
-          // General instructions before Q1 are not silently assigned to a question.
           prefaceTextFound = true;
         }
       }
 
+      if (current && page.pageNumber > current.sourcePageStart && page.lines?.length === 0) {
+        current.sourcePageEnd = page.pageNumber;
+      }
     }
 
     finishCurrent();
+    buildQuestionRegions(document, markerPositions);
 
     if (scannedPages > 0) {
       warnings.push(
@@ -186,18 +316,18 @@ export function segmentQuestions(
       warnings.push(
         document.filename + ": text before the first detected question was not attached to a question. Review general instructions in the source PDF.",
       );
-      prefaceTextFound = false;
     }
-    if (questions.every((question) => question.sourceDocumentId !== document.id)) {
+    if (documentQuestions.length === 0) {
       warnings.push(
         document.filename + ": no question-number markers were detected. Check the PDF layout or document role.",
       );
     }
   }
 
-  if (questions.length === 0 && warnings.length === 0) {
-    warnings.push("No question markers were detected in the selected question-paper documents.");
-  }
-
-  return { questions, warnings, sourceDocumentCount: sourceDocuments.length };
+  return {
+    questions,
+    rules: ruleAnalysis.rules,
+    warnings,
+    sourceDocumentCount: sourceDocuments.length,
+  };
 }
