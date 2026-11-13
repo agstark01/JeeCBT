@@ -263,5 +263,31 @@ export function discoverAnswerKeys(
     }
   }
 
-  return candidates;
+  const questionDocuments = documents.filter((document) => document.role === "question_paper");
+  return candidates.map((candidate) => {
+    const sourceMatches = documents.filter((document) =>
+      document.filename === candidate.sourceFilename &&
+      document.pages.some((page) => page.pageNumber === candidate.sourcePage)
+    );
+    const sourceDocumentId = candidate.sourceDocumentId ??
+      (sourceMatches.length === 1 ? sourceMatches[0].id : undefined);
+    const sourceIsQuestionPaper = sourceDocumentId !== undefined &&
+      questionDocuments.some((document) => document.id === sourceDocumentId);
+    const targetDocumentId = candidate.targetDocumentId ??
+      (sourceIsQuestionPaper
+        ? sourceDocumentId
+        : questionDocuments.length === 1
+          ? questionDocuments[0].id
+          : undefined);
+    return {
+      ...candidate,
+      sourceDocumentId,
+      targetDocumentId,
+      mappings: candidate.mappings.map((mapping) => ({
+        ...mapping,
+        id: mapping.id ?? newId(),
+        sourceDocumentId: mapping.sourceDocumentId ?? sourceDocumentId,
+      })),
+    };
+  });
 }
