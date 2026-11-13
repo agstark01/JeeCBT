@@ -36,8 +36,8 @@ function inferMarks(text: string): { correctMarks?: number; incorrectMarks?: num
   const correctValue = correct ? Number(correct[1] ?? correct[2] ?? NaN) : undefined;
   const incorrectValue = incorrect ? Number(incorrect[1] ?? incorrect[2] ?? NaN) : undefined;
   return {
-    correctMarks: Number.isFinite(correctValue) ? correctValue : undefined,
-    incorrectMarks: Number.isFinite(incorrectValue) ? -Math.abs(incorrectValue) : undefined,
+    correctMarks: correctValue !== undefined && Number.isFinite(correctValue) ? correctValue : undefined,
+    incorrectMarks: incorrectValue !== undefined && Number.isFinite(incorrectValue) ? -Math.abs(incorrectValue) : undefined,
   };
 }
 
