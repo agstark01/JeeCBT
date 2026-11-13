@@ -25,6 +25,16 @@ No upload or extracted paper content is sent to the JeeCBT backend. The current 
 
 The first version extracts selectable text. Pages with very little selectable text are flagged as likely scanned; OCR is not enabled yet. Diagrams and page images remain available in the retained source PDF but are not yet segmented into individual question assets.
 
+## Mixed-paper test builder
+
+The builder lets you select multiple imported paper packages for one planned test. A package contains the question-paper import and any answer-key PDFs or embedded key candidates supplied with it. Package boundaries are preserved so identical question numbers from different papers cannot accidentally share an answer key.
+
+Choose Physics, Chemistry, and/or Mathematics and set a question quota for each selected subject. The builder calculates the total, accepts a duration, and provides a shuffle option for the future question sampler. Random sampling will be without replacement and will preserve each question's source-paper and answer-key references.
+
+At this stage these are configuration controls only. The importer has not yet created complete, reviewed question records; answer-key mappings are still proposals. The Start examination action therefore remains disabled. The app must not treat the number of extracted answers as the number of available questions.
+
+See [the mixed-paper builder design](../docs/mixed-paper-test-builder.md) for the selection rules and the question-segmentation prerequisite.
+
 ## Google sign-in (optional)
 
 Google sign-in uses Google's Identity Services JavaScript library. The browser verifies the returned ID token signature and its issuer, audience, and expiry against Google's public signing keys. The Google subject identifier is used only as a local IndexedDB namespace.

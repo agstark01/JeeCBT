@@ -29,12 +29,18 @@ The web client is a static React + TypeScript + Vite application in the web dire
 - Dexie stores original PDF Blobs, extracted page text, and candidate mappings in IndexedDB.
 - The paper library displays source documents, detected answer-key candidates, and OCR warnings.
 - Optional Google Identity Services sign-in validates a Google ID token in the browser and uses the subject as a local IndexedDB namespace. It does not upload papers or sync data.
-- A test configuration screen is present. Starting an exam remains disabled until question segmentation and verified question storage are implemented.
+- The mixed-paper test builder can select multiple imported packages while keeping each paper paired with its own answer-key candidates.
+- The builder supports per-subject question quotas, a user-selected duration, and a shuffle preference. These are configuration controls only; question sampling is not active until verified question records exist.
+- Starting an exam remains disabled until question segmentation and verified question storage are implemented.
 
 Run the browser app:
 
+    cd web
+    cp .env.example .env.local
+    npm install
+    npm run dev
 
-See web/README.md for Firebase setup and local development details.
+See web/README.md for Google Identity Services setup and local development details.
 
 ### Parser reference backend
 
@@ -75,7 +81,8 @@ See docs/local-first-browser-architecture.md for the data model and privacy boun
 - [ ] Extraction of mathematical expressions, chemical notation, tables, and diagrams
 - [ ] Editable review and verification workflow
 - [ ] Extensible question type and marking-scheme registry
-- [ ] Test selection and configurable subject/question counts
+- [x] Multi-paper test configuration with per-subject quotas, duration and shuffle preference (configuration preview only)
+- [ ] Verified question selection across selected papers, random sampling without replacement, and exam launch
 - [ ] JEE-style exam interface, countdown, autosave, and auto-submission
 - [ ] Deterministic evaluation and immediate subject-wise results
 - [ ] Local attempt history and analytics
