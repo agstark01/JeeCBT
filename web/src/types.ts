@@ -178,3 +178,44 @@ export interface PaperPackage {
   questionSegmentationWarnings?: string[];
   questionSegmentationAt?: number;
 }
+
+export type ExamAnswerStatus = "correct" | "incorrect" | "unanswered";
+
+export interface ExamAnswerResult {
+  questionId: string;
+  packageId: string;
+  paperTitle: string;
+  questionNumber: number;
+  subject: Exclude<QuestionSubject, "UNASSIGNED">;
+  questionType: Exclude<QuestionType, "unknown">;
+  questionText: string;
+  selectedAnswer: string;
+  correctAnswer: string;
+  status: ExamAnswerStatus;
+  pointsAwarded: number;
+  pointsPossible: number;
+  answerSourceFilename: string;
+  answerSourcePage: number;
+  questionSourceFilename: string;
+  questionSourcePage: number;
+}
+
+export interface ExamAttempt {
+  id: string;
+  ownerId: string;
+  createdAt: number;
+  title: string;
+  packageIds: string[];
+  durationSeconds: number;
+  elapsedSeconds: number;
+  questionCount: number;
+  answeredCount: number;
+  correctCount: number;
+  incorrectCount: number;
+  unansweredCount: number;
+  score: number;
+  maxScore: number;
+  percentage: number;
+  answers: ExamAnswerResult[];
+}
+
