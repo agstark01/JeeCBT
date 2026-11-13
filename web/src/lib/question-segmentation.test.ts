@@ -114,7 +114,7 @@ describe("question segmentation", () => {
 
   it("creates a separate option crop from positioned A-D option markers", () => {
     const source = document("visual.pdf", "question_paper", [
-      "Q1. Calculate the result.\\n(A) First option\\n(B) Second option\\nQ2. Next question.",
+      "Q1. Calculate the result.\n(A) First option\n(B) Second option\nQ2. Next question.",
     ]);
     source.pages[0].lines = [
       { text: "Q1. Calculate the result.", x: 0.05, y: 0.10, width: 0.55, height: 0.02, columnIndex: 0 },
@@ -141,7 +141,7 @@ describe("question segmentation", () => {
 
   it("automatically classifies questions from descriptive section headings", () => {
     const source = document("sectioned.pdf", "question_paper", [
-      "PHYSICS\\nSECTION B (Multiple correct options)\\nQ.16 Select all valid statements.",
+      "PHYSICS\nSECTION B (Multiple correct options)\nQ.16 Select all valid statements.",
     ]);
     const result = segmentQuestions([source]);
 
