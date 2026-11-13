@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { isSupportedAnswerFormat } from "./lib/scoring";
 import {
   canVerifyAnswerMapping,
   evaluateAnswerMapping,
@@ -188,6 +189,11 @@ export default function AnswerKeyReviewer({
 
   const verifyMapping = (candidate: AnswerKeyCandidate, mapping: AnswerMapping) => {
     try {
+      const match = evaluateAnswerMapping(draftPackage, candidate, mapping);
+      if (!match.selectedQuestion || !isSupportedAnswerFormat(match.selectedQuestion, mapping.answerRaw)) {
+        setError("This raw answer does not match the selected question type. Set the question type or correct the raw answer before verification.");
+        return;
+      }
       const verified = setMappingReviewStatus(draftPackage, candidate, mapping, "verified");
       const index = candidate.mappings.indexOf(mapping);
       updateMapping(candidate.id, index, () => verified);
@@ -302,7 +308,10 @@ export default function AnswerKeyReviewer({
               const currentCandidate = draftPackage.candidates.find((item) => item.id === candidate.id) ?? candidate;
               const match = evaluateAnswerMapping(draftPackage, currentCandidate, mapping);
               const candidates = match.candidates;
-              const canVerify = canVerifyAnswerMapping(draftPackage, currentCandidate, mapping);
+              const answerFormatSupported = Boolean(
+                match.selectedQuestion && isSupportedAnswerFormat(match.selectedQuestion, mapping.answerRaw),
+              );
+              const canVerify = canVerifyAnswerMapping(draftPackage, currentCandidate, mapping) && answerFormatSupported;
               const selectedId = mapping.linkedQuestionId ?? match.selectedQuestion?.id ?? "";
               const selectedQuestion = match.selectedQuestion ??
                 draftPackage.questions?.find((question) => question.id === mapping.linkedQuestionId);
@@ -359,6 +368,9 @@ export default function AnswerKeyReviewer({
                   <div className="answer-match-state">
                     <strong>{matchLabel(match.status)}</strong>
                     <span>{match.reason}</span>
+                    {match.status === "matched" && !answerFormatSupported && (
+                      <small>The raw answer is not valid for the selected question type.</small>
+                    )}
                     {selectedQuestion && (
                       <small>
                         {selectedQuestion.sourceFilename} · page {selectedQuestion.sourcePageStart} ·
