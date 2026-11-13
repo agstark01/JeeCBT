@@ -27,6 +27,10 @@ jobs:
           cache-dependency-path: web/package.json
       - name: Install dependencies
         run: npm install
+      - name: Dependency audit summary
+        run: |
+          npm audit --json > npm-audit.json || true
+          node -e 'const r=require("./npm-audit.json"); console.log("Audit counts:", JSON.stringify(r.metadata?.vulnerabilities ?? {})); for (const [name, v] of Object.entries(r.vulnerabilities ?? {})) console.log(name, "severity="+v.severity, "range="+v.range, "fixAvailable="+JSON.stringify(v.fixAvailable), "via="+(v.via ?? []).map(x => typeof x === "string" ? x : x.title).join(" | "));'
       - name: Type check
         run: npm run typecheck
       - name: Run parser tests
