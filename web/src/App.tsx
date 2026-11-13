@@ -350,21 +350,25 @@ export default function App() {
 
     setError("");
     setNotice("");
-    const result = segmentQuestions(source.documents);
-    const updated: PaperPackage = {
-      ...source,
-      questions: result.questions,
-      questionSegmentationWarnings: result.warnings,
-      questionSegmentationAt: Date.now(),
-    };
-    await savePaperPackage(updated);
-    setPackages((current) => current.map((item) => item.id === updated.id ? updated : item));
-    setReviewPackageId(updated.id);
-    setTab("review");
-    if (result.questions.length === 0) {
-      setNotice("No question markers were detected. Check document roles and the source PDF.");
-    } else {
-      setNotice("Detected " + result.questions.length + " draft question(s). Review the text, subject and answer-key association before using them.");
+    try {
+      const result = segmentQuestions(source.documents);
+      const updated: PaperPackage = {
+        ...source,
+        questions: result.questions,
+        questionSegmentationWarnings: result.warnings,
+        questionSegmentationAt: Date.now(),
+      };
+      await savePaperPackage(updated);
+      setPackages((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setReviewPackageId(updated.id);
+      setTab("review");
+      if (result.questions.length === 0) {
+        setNotice("No question markers were detected. Check document roles and the source PDF.");
+      } else {
+        setNotice("Detected " + result.questions.length + " draft question(s). Review the text, subject and answer-key association before using them.");
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to segment questions locally.");
     }
   };
 
