@@ -11,6 +11,11 @@ const LINE_TOLERANCE = 2.5;
 interface PositionedTextItem {
   str: string;
   transform: number[];
+  dir: string;
+  width: number;
+  height: number;
+  fontName: string;
+  hasEOL: boolean;
 }
 
 function reconstructTextLines(items: PositionedTextItem[]): string {
