@@ -1,0 +1,35 @@
+name: Web checks
+
+on:
+  push:
+    paths:
+      - "web/**"
+      - ".github/workflows/web-tests.yml"
+  pull_request:
+    paths:
+      - "web/**"
+      - ".github/workflows/web-tests.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package.json
+      - name: Install dependencies
+        run: npm install
+      - name: Type check
+        run: npm run typecheck
+      - name: Run parser tests
+        run: npm test
+      - name: Build static web application
+        run: npm run build
