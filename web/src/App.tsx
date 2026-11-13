@@ -1,11 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  onAuthStateChanged,
-  signInWithPopup,
-  signOut,
-  type User,
-} from "firebase/auth";
-import { auth, createGoogleProvider, firebaseConfigured } from "./lib/firebase";
+  mountGoogleSignInButton,
+  type GoogleLocalProfile,
+} from "./lib/google-identity";
 import {
   clearLocalData,
   deletePaperPackage,
@@ -58,8 +55,28 @@ function mappingCount(candidate: AnswerKeyCandidate): number {
   return candidate.mappings.length;
 }
 
+function getStoredGoogleProfile(): GoogleLocalProfile | null {
+  try {
+    const value = localStorage.getItem("jeecbt.google-profile");
+    if (!value) return null;
+    const parsed = JSON.parse(value) as Partial<GoogleLocalProfile>;
+    return typeof parsed.sub === "string" && parsed.sub.length > 0
+      ? {
+          sub: parsed.sub,
+          name: typeof parsed.name === "string" ? parsed.name : undefined,
+          email: typeof parsed.email === "string" ? parsed.email : undefined,
+          picture: typeof parsed.picture === "string" ? parsed.picture : undefined,
+        }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
+
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<GoogleLocalProfile | null>(getStoredGoogleProfile);
   const [tab, setTab] = useState<Tab>("import");
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [packages, setPackages] = useState<PaperPackage[]>([]);
@@ -74,22 +91,54 @@ export default function App() {
   const [questionCount, setQuestionCount] = useState(30);
   const [durationMinutes, setDurationMinutes] = useState(60);
   const fileInput = useRef<HTMLInputElement>(null);
+  const googleButton = useRef<HTMLDivElement>(null);
 
-  const ownerId = user?.uid ?? "local";
+  const ownerId = user?.sub ?? "local";
   const selectedPackage = useMemo(
     () => packages.find((item) => item.id === selectedPackageId) ?? packages[0],
     [packages, selectedPackageId],
   );
 
   useEffect(() => {
-    if (!auth) return;
-    return onAuthStateChanged(auth, async (nextUser) => {
-      if (nextUser) {
-        await moveGuestPackagesToAccount(nextUser.uid);
-      }
-      setUser(nextUser);
-    });
-  }, []);
+    const element = googleButton.current;
+    if (!element || user || !GOOGLE_CLIENT_ID) return;
+
+    let cancelled = false;
+    let cleanup: (() => void) | undefined;
+    void mountGoogleSignInButton(
+      element,
+      GOOGLE_CLIENT_ID,
+      async (profile) => {
+        if (cancelled) return;
+        try {
+          await moveGuestPackagesToAccount(profile.sub);
+          localStorage.setItem("jeecbt.google-profile", JSON.stringify(profile));
+          setUser(profile);
+          setError("");
+          setNotice("Signed in with Google. Your papers and attempts remain on this device.");
+        } catch {
+          setError("Google sign-in succeeded, but the local profile could not be opened.");
+        }
+      },
+      (signInError) => {
+        if (!cancelled) setError(signInError.message);
+      },
+    )
+      .then((dispose) => {
+        cleanup = dispose;
+        if (cancelled) dispose();
+      })
+      .catch((signInError: unknown) => {
+        if (!cancelled) {
+          setError(signInError instanceof Error ? signInError.message : "Google sign-in could not be initialized.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
+  }, [user?.sub]);
 
   useEffect(() => {
     let active = true;
@@ -250,23 +299,10 @@ export default function App() {
     setNotice("Local JeeCBT data for this profile has been deleted.");
   };
 
-  const handleGoogleSignIn = async () => {
-    if (!auth) {
-      setError("Google sign-in is not configured. Follow web/README.md to connect Firebase Authentication.");
-      return;
-    }
-    try {
-      await signInWithPopup(auth, createGoogleProvider());
-      setError("");
-      setNotice("Signed in. Imported papers remain stored locally on this device.");
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Google sign-in failed.");
-    }
-  };
-
-  const handleGoogleSignOut = async () => {
-    if (auth) await signOut(auth);
-    setNotice("Signed out. Your local paper data has not been deleted.");
+  const handleGoogleSignOut = () => {
+    localStorage.removeItem("jeecbt.google-profile");
+    setUser(null);
+    setNotice("Signed out of JeeCBT. Your local paper data has not been deleted.");
   };
 
   const toggleSubject = (subject: string) => {
@@ -298,15 +334,17 @@ export default function App() {
         <div className="account-area">
           {user ? (
             <>
-              <span className="user-chip" title={user.email ?? user.displayName ?? "Signed in"}>
-                {user.photoURL ? <img src={user.photoURL} alt="" /> : <span className="avatar-fallback">{(user.displayName ?? user.email ?? "U").slice(0, 1).toUpperCase()}</span>}
-                <span>{user.displayName ?? user.email ?? "Google user"}</span>
+              <span className="user-chip" title={user.email ?? user.name ?? "Google profile"}>
+                {user.picture ? <img src={user.picture} alt="" /> : <span className="avatar-fallback">{(user.name ?? user.email ?? "U").slice(0, 1).toUpperCase()}</span>}
+                <span>{user.name ?? user.email ?? "Google profile"}</span>
               </span>
               <button className="button button-quiet button-small" onClick={handleGoogleSignOut}>Sign out</button>
             </>
+          ) : GOOGLE_CLIENT_ID ? (
+            <div className="google-signin-slot" ref={googleButton} />
           ) : (
-            <button className="button button-outline button-small" onClick={handleGoogleSignIn} disabled={!firebaseConfigured}>
-              <GoogleGlyph /> Sign in with Google
+            <button className="button button-outline button-small" disabled title="Set VITE_GOOGLE_CLIENT_ID in web/.env.local">
+              <GoogleGlyph /> Google sign-in setup
             </button>
           )}
         </div>
