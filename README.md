@@ -1,126 +1,93 @@
 # JeeCBT
 
-An open-source exam-paper ingestion and computer-based testing platform, initially targeting JEE Main and JEE Advanced.
+JeeCBT is an open-source, local-first JEE Main and JEE Advanced practice examination platform.
 
-JeeCBT accepts one or more source PDFs, discovers question-paper and answer-key material wherever it appears, and is being developed into a structured question bank and timed mock-test platform.
+The goal is to let a student import a previous-year question paper and its answer key (embedded in the same PDF or supplied separately), prepare a structured question bank, configure a timed test, attempt it in a computer-based examination interface, and receive an immediate result.
 
-> **Project status:** early development. The current backend milestone inspects PDFs and proposes answer-key candidates. It does not yet segment all questions or run full examinations.
+**Privacy model:** source PDFs, extracted questions, answer keys, attempts, and scores remain in the user's browser. GitHub contains application source code and documentation only.
 
-## Core idea
+## Product direction
 
-The system must not assume that every examination has the same paper layout or that every answer key is a separate PDF. A paper may contain its answer key in later pages, a separate answer-key PDF may be supplied, or no key may be available yet.
+- Generic document ingestion, not a hard-coded PDF format for each exam.
+- Scan every page of every selected document for answer keys.
+- Support answer keys embedded in the question paper and separate answer-key PDFs.
+- Preserve subject, paper/section, question number, and source-page provenance.
+- Preserve answer values as raw strings: single options, multiple options, and numeric responses.
+- Require human verification of extracted content before scoring.
+- Support paper-specific question types and marking rules.
+- Local-first data, with optional Google authentication and separately opt-in Drive backup.
 
-JEE Main and JEE Advanced are initial exam profiles, not hard-coded parser formats. Question types, paper structure, and marking rules will be configurable data.
+## Current implementation
 
-## Product workflow
+### Browser application
 
-1. An uploader creates a paper package and uploads the question paper plus any optional supporting PDFs (answer keys, solutions, corrections, or addenda).
-2. The ingestion pipeline inspects every page of every uploaded PDF and extracts selectable text with page-level provenance.
-3. The answer-key discovery stage scans all uploaded documents, including the final pages of the question paper itself.
-4. The matching stage aligns answer candidates with question identities, sections, paper codes, and shifts. It records ambiguity rather than silently guessing.
-5. A reviewer verifies question boundaries, options, equations, diagrams, subject labels, answer mappings, question types, and marking rules.
-6. The verified paper enters the question bank.
-7. A student configures a test: exam profile, subjects, total or per-subject question counts, duration, and source-paper pool.
-8. The exam client provides question navigation, answer states, review controls, autosave, and a server-authoritative timer.
-9. Submission or timeout freezes the attempt and invokes the marking engine.
-10. Results show the score, subject-wise breakdown, question-wise responses, correct answers, and marking rationale.
+The web client is a static React + TypeScript + Vite application in the web directory.
 
-## Design principles
+- PDF.js extracts selectable PDF text in the browser using its worker.
+- Text fragments are grouped by page coordinates to reconstruct lines and table rows.
+- Browser-side parsing detects initial numbered answer-key and subject-wise Ques./Ans. table formats.
+- Dexie stores original PDF Blobs, extracted page text, and candidate mappings in IndexedDB.
+- The paper library displays source documents, detected answer-key candidates, and OCR warnings.
+- Optional Firebase Google sign-in separates local IndexedDB records by account UID. Sign-in does not upload papers or sync data.
+- A test configuration screen is present. Starting an exam remains disabled until question segmentation and verified question storage are implemented.
 
-- **Documents are sources; questions are structured records.** Store question content as structured data; represent mathematical expressions in LaTeX and render them in the browser with MathJax/KaTeX. LaTeX export can be added, but a .tex file is not the canonical database format.
-- **Answer-key discovery is independent of question parsing.** A key may be embedded in the question PDF, supplied in another PDF, or absent. The pipeline supports all three cases as separate states.
-- **Do not confuse answer keys with solutions.** Solutions may contain a correct answer, but they need a separate classification and reviewer-approved extraction path.
-- **Human verification before publication.** OCR can confuse signs, superscripts, subscripts, chemical notation, option labels, and diagrams. Never publish or score an unreviewed extraction as authoritative.
-- **Exam profiles are configuration, not parser branches.** JEE Main and JEE Advanced can have different question types, sections, durations, and marking rules without duplicating the ingestion engine.
-- **Extensible question types.** Question types are identified by stable type keys and handled by registered renderers and scorers.
-- **Paper-specific marking.** Never assume every question is +4/-1. Marking is configured per question or section from the official paper instructions.
-- **Deterministic evaluation.** Scoring is rule-based and tested. OCR/AI must never decide a student's marks.
-- **Server-authoritative exam time.** The backend owns the deadline. Refreshing or changing the client clock must not extend an attempt.
-- **Traceability.** Preserve source document, page number, extracted region, answer-key source, reviewer changes, and marking policy.
+Run the browser app:
 
-## Initial stack
+    cd web
+    cp .env.example .env.local
+    npm install
+    npm run dev
 
-- Python 3.11+
-- FastAPI + Pydantic
-- PyMuPDF for text extraction from text-based PDFs
-- PostgreSQL for durable question bank and exam state (planned)
-- Redis + a worker for long-running OCR/diagram processing (planned)
-- Next.js/TypeScript exam client (planned)
-- MathJax or KaTeX for browser-side math rendering (planned)
-- Docker Compose for local development (planned)
+See web/README.md for Firebase setup and local development details.
 
-## Run the backend locally
+### Parser reference backend
+
+The Python/FastAPI directory contains a local development/reference implementation and synthetic tests. Its PDF-upload endpoint is not used by the browser app and must not be deployed as the document-ingestion path for the strict local-first product.
+
+Run reference tests:
 
     cd backend
     python -m venv .venv
     source .venv/bin/activate
     pip install -e ".[dev]"
-    uvicorn app.main:app --reload
-
-Open http://127.0.0.1:8000/docs for the interactive API.
-
-## Inspect uploaded PDFs
-
-The current endpoint accepts multiple PDFs under the same field. Document roles are optional hints, not requirements.
-
-    curl -X POST http://127.0.0.1:8000/api/v1/ingestion/inspect \
-      -F "exam_profile=jee_main" \
-      -F 'roles_json=["question_paper","answer_key"]' \
-      -F "documents=@question-paper.pdf" \
-      -F "documents=@answer-key.pdf"
-
-For an embedded key, upload only the question-paper PDF. The service scans all its pages.
-
-The endpoint reports one of three states:
-
-- detected_needs_review: an answer-key candidate was detected; proposed mappings still need verification.
-- not_detected: no candidate was found in readable text. This does not prove that the answer key is absent.
-- needs_ocr: at least one page appears to have little extractable text and no key candidate was found.
-
-Uploads are processed in memory and are not persisted by this initial endpoint. The response includes page metadata, text excerpts, candidate answer mappings, and source-page references.
-
-## Run tests
-
-    cd backend
     pytest
 
-## Repository layout
+## Data boundaries
 
-    backend/
-      app/
-        main.py
-        pdf_ingest.py
-        answer_discovery.py
-        schemas.py
-      tests/
-        test_answer_discovery.py
-    docs/
-      ingestion-pipeline.md
-      sample-validation.md
+GitHub is never a storage location for:
+- uploaded question papers or answer keys;
+- extracted real questions or answer mappings;
+- user responses, exam attempts, scores, or personal data;
+- Google credentials or secrets.
 
-## Development status
+The .gitignore excludes PDF files, local upload directories, virtual environments, and local environment files. Only example environment templates are tracked.
 
-- [x] Multi-PDF upload inspection endpoint
-- [x] PDF signature, size, page-count and password checks
-- [x] Page-level text extraction and source provenance
-- [x] Embedded answer-key heading detection
-- [x] Initial numbered answer mapping extraction for parenthesized keys
-- [x] Separate answer-key document support via uploader role hint
-- [x] Synthetic tests for embedded keys, separate keys and OCR-needed pages
-- [x] Initial observations recorded for the supplied JEE Main and JEE Advanced samples
-- [ ] OCR for image-based pages
-- [ ] More answer-key layout adapters and robust table extraction
-- [ ] Subject/section boundary detection and question segmentation
-- [ ] Math, chemical notation, tables, and diagram/figure extraction
-- [ ] Reviewer/editor UI and verified question-bank persistence
-- [ ] Exam profiles and question-type registry
-- [ ] Configurable test builder and server-side attempts/timer
-- [ ] Deterministic marking engine and subject-wise results
-- [ ] Exam client and analytics
+The browser stores local data in IndexedDB. This data is specific to the browser and device. Google sign-in alone does not provide backup or synchronization. Google Drive integration is a separate future opt-in feature.
+
+See docs/local-first-browser-architecture.md for the data model and privacy boundaries.
+
+## Development roadmap
+
+- [x] Multi-PDF local upload and PDF.js text extraction
+- [x] Embedded answer-key discovery for numbered parenthesized answer lists
+- [x] Subject-wise Physics/Chemistry/Maths Ques./Ans. table detection
+- [x] Separate answer-key document role support
+- [x] Local IndexedDB storage and paper library
+- [x] Optional Google sign-in with per-account local data namespace
+- [ ] OCR for scanned pages
+- [ ] Full question segmentation and subject/section identification
+- [ ] Extraction of mathematical expressions, chemical notation, tables, and diagrams
+- [ ] Editable review and verification workflow
+- [ ] Extensible question type and marking-scheme registry
+- [ ] Test selection and configurable subject/question counts
+- [ ] JEE-style exam interface, countdown, autosave, and auto-submission
+- [ ] Deterministic evaluation and immediate subject-wise results
+- [ ] Local attempt history and analytics
+- [ ] Optional Google Drive progress backup
 
 ## Contributing
 
-Contributions are welcome. Open an issue before large architectural changes. Do not commit copyrighted exam papers, answer keys, solutions, or diagrams unless redistribution is explicitly permitted. Tests generate synthetic PDFs at runtime.
+Contributions are welcome. Open an issue before large architectural changes. Do not commit copyrighted exam papers, answer keys, solutions, or diagrams unless redistribution is explicitly permitted. Automated tests should generate synthetic PDFs or use fixtures that are licensed for redistribution.
 
 ## License
 
