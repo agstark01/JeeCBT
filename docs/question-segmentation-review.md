@@ -27,12 +27,13 @@ The reviewer provides:
 - an embedded local PDF preview at the question's first page;
 - a full visual question crop and a separate option-region crop rendered from the original PDF locally in the browser;
 - bulk subject assignment by numbering block;
+- block-level verification after subject and question-type classification, with an explicit confirmation;
 - bulk subject assignment by inclusive question-number range within a selected source PDF and optional block;
-- optional linking to an answer-key candidate mapping with the same question number.
+- a separate Answer-key review workflow that reconciles each mapping against its source and target paper, resolves ambiguity, and requires independent verification.
 
 Question status is one of `needs_review`, `verified`, or `rejected`. Marking a question verified means the question text and metadata were reviewed. It does not mean the answer key was verified.
 
-Answer-key mappings are still proposals in this milestone. The reviewer can attach an exact candidate/mapping reference, but it does not promote the mapping to verified. Question scoring must remain disabled until answer-key review and question-to-answer validation are implemented.
+Answer-key mappings are reviewed in a separate screen. The reviewer chooses the answer-key source PDF and target question paper, inspects the key page, corrects raw answer text, selects the exact matching question, and verifies the mapping. A question and its answer mapping are independent verification gates; both must be verified before the question is eligible for a scored test.
 
 ## Provenance and identity
 
@@ -55,7 +56,7 @@ A question number alone is never a unique key. The containing package and source
 - Visual question and option crops are generated on demand from the local PDF; raster crops are not sent to a server. Option crops depend on recognizable A–D or 1–4 option markers. Scanned/image-only pages do not yet have reliable marker geometry because OCR is not included.
 - Shared instructions before Q1 are not attached to a question; a warning prompts the reviewer to consult the source.
 - Subject detection is intentionally conservative. Use the block/range tools or per-question subject control where headings are absent. Explicit section headings with type descriptions, question-number ranges, and question-level instructions can infer question type and marking values. Question-level instructions take precedence; conflicting rules remain unknown. The parser does not infer single-vs-multiple choice from option labels alone.
-- The current question review state does not verify answer-key mappings or marking schemes.
+- The question reviewer does not verify answer-key mappings. Use the dedicated answer-key reviewer for source/target selection and mapping verification.\n- The exam runner supports single choice, exact-set multiple choice, and numeric answers. It does not yet support JEE Advanced partial-credit rules, symbolic/range-based numeric acceptance, or all exam-specific response types.\n- The countdown is browser-local. In-progress responses are not yet persisted across page reloads; only submitted attempts are saved.
 
 ## Next prerequisites
 

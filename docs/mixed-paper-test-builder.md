@@ -1,59 +1,62 @@
-# Mixed-paper test builder
+# Mixed-paper test builder and scoring
 
-## Goal
+## Scope
 
-Allow a student to build one timed practice test from multiple imported paper packages. The student selects the source papers, chooses a question quota per subject, sets the duration, and optionally enables random selection and ordering.
+Build one timed practice test from one or more imported paper packages. Every package contains a question paper and its associated embedded or separate answer-key PDFs. The builder is local-only: it reads IndexedDB and never uploads documents, questions, responses or scores.
 
-The builder is local-only. It reads the selected packages from IndexedDB and does not upload paper content or test data.
+## Eligibility gate
 
-## Source and answer-key association
+A question enters a scored test only when all of the following are true:
 
-An imported `PaperPackage` is the source boundary: it contains one paper import and the PDFs supplied with that import. Those PDFs may include the question paper, an answer key embedded in the paper, or separately supplied answer-key and solution documents.
+1. It belongs to a selected PaperPackage and a known question-paper document.
+2. Its subject is assigned and its question type is classified.
+3. Its extracted text and metadata have been reviewed and marked verified.
+4. Exactly one answer mapping in that same package matches the question identity.
+5. The answer mapping has source provenance, has been linked or uniquely reconciled to the exact question, and has been marked verified.
+6. Its raw answer format is supported by the current scorer.
 
-When several packages are selected, each question must retain its source package identity. Its answer must be resolved only against answer-key candidates belonging to that same package. A question number alone is never a globally unique key.
+The mapping identity includes package, target question-paper document, question number and available subject/paper/section/block metadata. When these fields do not uniquely identify one question, the answer-key reviewer requires an explicit question selection. The question number alone is never a global key.
 
-The future question identity should include at least:
+## Review workflow
 
-- source `paperPackageId`;
-- paper label / paper number;
-- subject;
-- section identifier where present;
-- question number.
+- Segment the question paper and review the extracted question text, type, subject and visual crop.
+- Mark the question verified only after checking it against the original page.
+- Open Answer-key review, select the source key PDF and target question paper, inspect the original key page, edit the raw answer if needed, select the exact question, and verify the mapping.
+- Changing the answer, source or target reopens the mapping for review.
+- A verified answer mapping cannot make an unverified question eligible; both gates are required.
 
-The question record must also retain source document and page provenance. Its answer-key reference should identify the exact candidate and mapping that supplied the answer. Existing extracted mappings are proposals, not verified answers.
+## Test configuration and sampling
 
-This prevents collisions such as Physics Q1 in Paper 1 being matched to Physics Q1 in Paper 2, or a key from a different shift being applied because the question numbers happen to match.
+The builder supports:
 
-## Test configuration
+- multiple source packages;
+- Physics, Chemistry and Mathematics quotas;
+- test duration in minutes;
+- shuffle on/off;
+- fallback marks for correct and incorrect answers.
 
-The current builder UI supports:
+For each requested subject, the application counts fully eligible records before launch. If the verified pool is smaller than the quota, the builder reports the exact shortfall and will not silently reduce the test size.
 
-- multiple source packages selected together;
-- Physics, Chemistry, and Mathematics selection;
-- an exact question quota for each selected subject;
-- a duration in minutes;
-- a shuffle toggle, enabled by default;
-- a live total calculated from the active subject quotas.
+When shuffle is enabled, the test samples without replacement per subject and shuffles the final selected questions. When shuffle is disabled, it preserves the selected package/question source order. Every selected question is snapshotted with its exact answer value and source provenance.
 
-The total requested question count is the sum of the selected subject quotas. Unselected subjects contribute zero.
+## Answer evaluation
 
-## Random selection contract
+- Single choice: one selected option must match the raw verified option label.
+- Multiple correct: the learner's complete option set must exactly match the verified set. Order does not matter.
+- Numerical: the response and key are parsed as numbers and compared using a small floating-point tolerance.
+- Unanswered: zero marks.
+- Question-specific positive and negative marks override the test-level fallback marks. The initial defaults are +4 for correct and -1 for incorrect, and can be changed before the test.
 
-Once the verified question bank exists, the selection algorithm must:
+**Important JEE Advanced limitation:** this version does not implement section-specific partial-credit schemes for multiple-correct questions. It uses exact-set scoring for those questions. The displayed score is only an official-style score when the source paper's marking rules are compatible with that scoring behavior and the configured fallback marks.
 
-1. Filter records to the selected package IDs and selected subjects.
-2. Include only complete, reviewed question records. For scored tests, the matching answer mapping must also be verified and belong to the same source package.
-3. Check the available pool for each subject before constructing the test. If a subject has fewer eligible questions than requested, show the shortfall and do not silently reduce the quota.
-4. When shuffle is enabled, sample each subject pool uniformly without replacement, then randomize the order of the selected questions. No question may appear twice in one test.
-5. When shuffle is disabled, use a stable source order (paper import order, paper/section order, then question number).
-6. Preserve each question's source and answer-key reference in the test snapshot so evaluation uses the exact mapping associated with that question.
+Units, numerical acceptance ranges, symbolic equivalence, matrix-match, integer-grid and other exam-specific answer formats are not supported yet. Keys using unsupported answer formats are excluded from the eligible pool instead of being silently marked wrong.
 
-The utility `sampleWithoutReplacement` is implemented and unit-tested as a reusable foundation. It is not connected to live question records yet because question segmentation and review are not implemented.
+## Timer, results and storage
 
-## Current limitation
+The runner provides a countdown, question palette, previous/next navigation, mark-for-review, clear response, manual submission and auto-submission at zero. The clock is browser-local and is not tamper-proof.
 
-The application currently extracts PDF text and proposes answer-key mappings. It does not yet segment complete question statements, options, diagrams, equations, and section instructions into verified question records.
+On submission, the result screen displays total score, percentage, positive/negative marks, correct/incorrect/unanswered counts, and a question-wise comparison against the exact verified mapping. The submitted attempt is stored in IndexedDB with its answer snapshot and score.
 
-For that reason, the new builder is a configuration preview only. The Start examination action remains disabled. It must not treat answer-key rows as questions, infer question availability from the number of answer mappings, or score against unverified candidates.
+In-progress answers are currently kept in React memory and are not persisted until submission. Reloading or closing the page before submitting loses that attempt. Mid-test autosave and reload recovery are future work.
 
-The next prerequisite is question segmentation plus a review workflow that creates verified question records and links each one to the correct package-specific answer mapping. After that, the builder can calculate eligible pool counts and launch the mixed-paper exam.
+No exam content or scores are committed to GitHub.

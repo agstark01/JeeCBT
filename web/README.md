@@ -25,25 +25,36 @@ No upload or extracted paper content is sent to the JeeCBT backend. The current 
 
 The first version extracts selectable text. Pages with very little selectable text are flagged as likely scanned; OCR is not enabled yet. Diagrams and page images remain available in the retained source PDF but are not yet segmented into individual question assets.
 
-## Mixed-paper test builder
+## End-to-end question review and CBT workflow
 
-The builder lets you select multiple imported paper packages for one planned test. A package contains the question-paper import and any answer-key PDFs or embedded key candidates supplied with it. Package boundaries are preserved so identical question numbers from different papers cannot accidentally share an answer key.
+Each PaperPackage contains one question paper and its associated answer-key/solution PDFs. Keep a question paper and its key in the same import so question identities and keys cannot leak across papers.
 
-Choose Physics, Chemistry, and/or Mathematics and set a question quota for each selected subject. The builder calculates the total, accepts a duration, and provides a shuffle option for the future question sampler. Random sampling will be without replacement and will preserve each question's source-paper and answer-key references.
+1. Import the question paper and its key PDF(s) together. The import is processed in the browser and saved to IndexedDB.
+2. Open the package in **My library** and choose **Segment questions**.
+3. In **Review questions**, inspect the extracted text and the local visual crop. Assign the correct subject and question type, correct any extraction errors, then mark each usable question verified.
+4. Open **Review answer keys**. Choose the source key PDF and the target question paper, inspect the original key page, edit any incorrect raw answer values, link the mapping to the exact question, and mark it verified. Ambiguous and mismatched mappings cannot be verified until resolved.
+5. Open **Build a test**. Select source packages, choose per-subject quotas, duration, shuffle preference and fallback correct/incorrect marks. The builder shows how many fully verified pairs are eligible for each subject.
+6. Start the timed test. The exam palette shows question state; answers support single choice, multiple choice and numeric input. The timer submits automatically at zero. Manual submission is also available.
+7. The result screen shows total score, percentage, correct/incorrect/unanswered totals, positive and negative marks, and a question-wise comparison against the verified answer key. Submitted attempts are stored in IndexedDB.
 
-At this stage these are configuration controls only. The importer has not yet created complete, reviewed question records; answer-key mappings are still proposals. The Start examination action therefore remains disabled. The app must not treat the number of extracted answers as the number of available questions.
+Only questions with verified text and exactly one verified, package-scoped answer mapping are eligible. The question number alone is never used to join records across papers.
 
-See [the mixed-paper builder design](../docs/mixed-paper-test-builder.md) for the selection rules and the question-segmentation prerequisite.
+## Scoring behavior and current limits
+
+- Question-specific positive/negative marks are used when the parser extracted them; otherwise the test builder's configurable defaults are used (initially +4 / -1).
+- Single-choice answers require one exact option label.
+- Multiple-correct answers require the complete option set. Partial-credit JEE Advanced rules are not implemented in this version; use a marking scheme that follows exact-set scoring or treat the score as provisional.
+- Numeric answers compare parsed numbers with a small floating-point tolerance. Range-based numeric acceptance, units, tolerances from an exam's official marking instructions, and non-numeric formats are not yet supported.
+- The countdown is browser-local and is not tamper-proof. It does not recover an in-progress attempt after a page reload; answers are saved in the submitted result only.
+- Scanned PDFs still require OCR, which is not yet enabled. Complex crop boundaries and unusual PDF layouts require manual source-page review.
 
 ## Question segmentation and review
 
-After import, open a paper package in the library and choose **Segment questions**. The first local parser recognizes common line-start markers (`Q.1`, `Q1.`, `Question 1:`) and accumulates each question until the next marker. Each draft retains its source PDF, page range and numbering block.
+The first local parser recognizes common line-start markers (Q.1, Q1., Question 1:) and accumulates each question until the next marker. Each draft retains source PDF/page provenance and a numbering block. The original PDF page and generated visual question/option crops are rendered locally.
 
-Open the review screen to edit the extracted text, question number, subject and question type. When the PDF does not contain explicit subject labels, questions remain unassigned; use the block-level or question-number-range assignment controls. The original PDF is previewed locally alongside the editable draft.
+Question status (needs_review, verified, rejected) covers the question text and metadata only. Answer-key mappings have their own independent review status. Only the dedicated answer-key reviewer can make a key eligible for scoring.
 
-A question marked verified has only had its question text and metadata reviewed. Answer-key candidates remain proposed mappings even when linked to a question. The current milestone does not verify answers, crop diagrams, or perform OCR. The exam runner remains disabled until these parts are addressed.
-
-The parser is intentionally marker-based rather than a universal PDF parser. Papers with unusual or inline markers, scanned pages, complex columns, shared instructions, or heavy diagram/table content still require manual review. See [the segmentation design and limitations](../docs/question-segmentation-review.md).
+The parser remains marker-based rather than a universal PDF parser. Papers with unusual or inline markers, scanned pages, complex columns, shared instructions, or heavy diagram/table content still require manual review. See the segmentation design and limitations in ../docs/question-segmentation-review.md.
 
 ## Google sign-in (optional)
 

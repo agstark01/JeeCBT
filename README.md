@@ -29,10 +29,10 @@ The web client is a static React + TypeScript + Vite application in the web dire
 - Dexie stores original PDF Blobs, extracted page text, and candidate mappings in IndexedDB.
 - The paper library displays source documents, detected answer-key candidates, and OCR warnings.
 - Optional Google Identity Services sign-in validates a Google ID token in the browser and uses the subject as a local IndexedDB namespace. It does not upload papers or sync data.
-- The mixed-paper test builder can select multiple imported packages while keeping each paper paired with its own answer-key candidates.
-- The builder supports per-subject question quotas, a user-selected duration, and a shuffle preference. These are configuration controls only; question sampling is not active until verified question records exist.
+- The answer-key reviewer edits raw answers, assigns each candidate to its exact question-paper PDF, resolves ambiguous question matches, and verifies answer mappings independently of question text.
+- The test builder counts only fully verified question/answer pairs from the selected paper packages. It samples by subject quota without replacement and refuses to start when any quota has a shortfall.
 - Initial question segmentation recognizes common line-start question markers, stores normalized line geometry, and creates draft records with source-page provenance, numbering blocks, and on-demand visual crop regions.
-- The local question reviewer supports visual question crops and separate option crops rendered from the original PDF in the browser, editing extracted text and metadata, assigning subjects by block or question-number range, previewing the source page, and linking a proposed answer-key mapping.
+- The local question reviewer supports visual question and option crops, editing extracted text and metadata, assigning subjects by block or question-number range, and verifying question text independently of answer keys.
 - Question verification and answer-key verification are separate. A linked answer candidate is still unverified.
 - Starting an exam remains disabled until question records and their answer mappings have been reviewed and made eligible for scoring.
 
@@ -67,7 +67,7 @@ GitHub is never a storage location for:
 
 The .gitignore excludes PDF files, local upload directories, virtual environments, and local environment files. Only example environment templates are tracked.
 
-The browser stores local data in IndexedDB. This data is specific to the browser and device. Google sign-in alone does not provide backup or synchronization. Google Drive integration is a separate future opt-in feature.
+The browser stores paper packages and submitted attempts in IndexedDB. In-progress exam answers are currently held in memory until submission, so reloading or closing the exam before submission loses that attempt. Data is specific to the browser and device. Google sign-in alone does not provide backup or synchronization. Google Drive integration is a separate future opt-in feature.
 
 See docs/local-first-browser-architecture.md for the data model and privacy boundaries. See [question segmentation and review](docs/question-segmentation-review.md) for the current parser scope and limitations.
 

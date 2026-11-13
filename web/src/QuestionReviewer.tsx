@@ -30,23 +30,6 @@ const questionTypeOptions: Array<{ value: QuestionType; label: string }> = [
   { value: "numerical", label: "Numerical answer" },
 ];
 
-function answerReferenceValue(question: QuestionDraft): string {
-  return question.answerKeyReference
-    ? question.answerKeyReference.candidateId + ":" + question.answerKeyReference.mappingIndex
-    : "";
-}
-
-function parseAnswerReference(value: string): QuestionDraft["answerKeyReference"] {
-  if (!value) return undefined;
-  const separator = value.lastIndexOf(":");
-  if (separator < 1) return undefined;
-  const candidateId = value.slice(0, separator);
-  const mappingIndex = Number(value.slice(separator + 1));
-  return Number.isInteger(mappingIndex) && mappingIndex >= 0
-    ? { candidateId, mappingIndex }
-    : undefined;
-}
-
 function PdfSourcePreview({
   document,
   pageNumber,
@@ -162,34 +145,6 @@ export default function QuestionReviewer({
     [questions],
   );
 
-  const answerKeyOptions = useMemo(() => {
-    if (!draft) return [];
-    return paperPackage.candidates.flatMap((candidate) =>
-      candidate.mappings.flatMap((mapping, mappingIndex) => {
-        if (mapping.questionNumber !== draft.questionNumber) return [];
-        if (
-          draft.subject !== "UNASSIGNED" &&
-          candidate.subject &&
-          candidate.subject !== draft.subject &&
-          !(candidate.subject === "MATHEMATICS" && draft.subject === "MATHS")
-        ) {
-          return [];
-        }
-        const label = [
-          candidate.paperLabel,
-          candidate.subject,
-          candidate.sourceFilename + " p." + candidate.sourcePage,
-          "answer " + mapping.answerRaw,
-          "unverified",
-        ].filter(Boolean).join(" · ");
-        return [{
-          value: candidate.id + ":" + mappingIndex,
-          label,
-        }];
-      }),
-    );
-  }, [draft?.questionNumber, draft?.subject, paperPackage.candidates]);
-
   const updateDraft = <K extends keyof QuestionDraft>(
     key: K,
     value: QuestionDraft[K],
@@ -267,6 +222,36 @@ export default function QuestionReviewer({
         setDraft({ ...draft, subject, status: "needs_review" });
       }
       setMessage("Subject assigned to all questions in that numbering block.");
+    } catch {
+      // persistQuestions already reports the storage error.
+    }
+  };
+
+  const verifyBlock = async (sourceDocumentId: string, blockNumber: number) => {
+    const blockQuestions = questions.filter((question) =>
+      question.sourceDocumentId === sourceDocumentId && question.blockNumber === blockNumber,
+    );
+    const ready = blockQuestions.every((question) =>
+      question.questionNumber > 0 &&
+      question.subject !== "UNASSIGNED" &&
+      question.questionType !== "unknown" &&
+      question.statementText.trim().length > 0,
+    );
+    if (!ready) {
+      setMessage("Assign subjects, classify every question, and check that each question has extracted text before bulk verification.");
+      return;
+    }
+    if (!window.confirm(
+      "Mark all " + blockQuestions.length + " questions in this block as verified? Do this only after inspecting the block's source pages and crops.",
+    )) return;
+    const ids = new Set(blockQuestions.map((question) => question.id));
+    const nextQuestions = questions.map((question) =>
+      ids.has(question.id) ? { ...question, status: "verified" as const } : question,
+    );
+    try {
+      await persistQuestions(nextQuestions);
+      if (draft && ids.has(draft.id)) setDraft({ ...draft, status: "verified" });
+      setMessage("Verified " + blockQuestions.length + " question(s) in block " + blockNumber + ". Answer-key mappings still require separate verification.");
     } catch {
       // persistQuestions already reports the storage error.
     }
@@ -381,6 +366,18 @@ export default function QuestionReviewer({
                   >
                     {subjectOptions.map((subject) => <option key={subject.value} value={subject.value}>{subject.label}</option>)}
                   </select>
+                  <button
+                    className="button button-outline button-small"
+                    onClick={() => void verifyBlock(group.sourceDocumentId, group.blockNumber)}
+                    disabled={saving || !group.questions.every((question) =>
+                      question.questionNumber > 0 &&
+                      question.subject !== "UNASSIGNED" &&
+                      question.questionType !== "unknown" &&
+                      question.statementText.trim().length > 0
+                    )}
+                  >
+                    Verify block
+                  </button>
                 </div>
               );
             })}
@@ -482,16 +479,10 @@ export default function QuestionReviewer({
                 <label className="review-text-label">Extracted question text
                   <textarea value={draft.statementText} onChange={(event) => updateDraft("statementText", event.target.value)} rows={12} />
                 </label>
-                <label className="review-answer-label">Matching answer-key entry
-                  <select
-                    value={answerReferenceValue(draft)}
-                    onChange={(event) => updateDraft("answerKeyReference", parseAnswerReference(event.target.value))}
-                  >
-                    <option value="">No answer-key entry linked</option>
-                    {answerKeyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                  <small>Only entries with the same question number are shown. These are proposed mappings and are not verified answers.</small>
-                </label>
+                <div className="review-answer-label">
+                  <strong>Answer-key review is separate</strong>
+                  <small>After verifying this question, open “Review answer keys” from the paper library to match the raw key entry to this exact question and verify it for scoring.</small>
+                </div>
                 <div className="review-provenance">
                   <strong>Source provenance</strong>
                   <span>{draft.sourceFilename}</span>

@@ -9,15 +9,23 @@ import {
   listPaperPackages,
   moveGuestPackagesToAccount,
   savePaperPackage,
+  saveExamAttempt,
+  listExamAttempts,
 } from "./lib/db";
 import { discoverAnswerKeys } from "./lib/answer-discovery";
 import { extractPdfLocally } from "./lib/pdf";
 import QuestionReviewer from "./QuestionReviewer";
+import AnswerKeyReviewer from "./AnswerKeyReviewer";
+import ExamRunner from "./ExamRunner";
+import ExamResults from "./ExamResults";
 import { segmentQuestions } from "./lib/question-segmentation";
 import {
   getQuestionTotal,
   TEST_SUBJECTS,
   validateTestDraft,
+  collectEligibleQuestions,
+  selectTestQuestions,
+  type EligibleTestQuestion,
   type SubjectQuestionCounts,
   type TestSubject,
 } from "./lib/test-builder";
@@ -25,9 +33,10 @@ import type {
   AnswerKeyCandidate,
   DocumentRole,
   PaperPackage,
+  ExamAttempt,
 } from "./types";
 
-type Tab = "import" | "library" | "builder" | "review";
+type Tab = "import" | "library" | "builder" | "review" | "answer-review" | "exam" | "results";
 
 interface PendingFile {
   file: File;
@@ -97,6 +106,11 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [selectedPackageId, setSelectedPackageId] = useState("");
   const [reviewPackageId, setReviewPackageId] = useState("");
+  const [answerReviewPackageId, setAnswerReviewPackageId] = useState("");
+  const [examQuestions, setExamQuestions] = useState<EligibleTestQuestion[]>([]);
+  const [examTitle, setExamTitle] = useState("JEE practice test");
+  const [latestAttempt, setLatestAttempt] = useState<ExamAttempt | null>(null);
+  const [scoringDefaults, setScoringDefaults] = useState({ correctMarks: 4, incorrectMarks: -1 });
   const [selectedSourcePackageIds, setSelectedSourcePackageIds] = useState<string[]>([]);
   const [subjects, setSubjects] = useState<TestSubject[]>([...TEST_SUBJECTS]);
   const [subjectQuestionCounts, setSubjectQuestionCounts] = useState<SubjectQuestionCounts>({
@@ -122,6 +136,10 @@ export default function App() {
     () => packages.find((item) => item.id === reviewPackageId),
     [packages, reviewPackageId],
   );
+  const answerReviewPackage = useMemo(
+    () => packages.find((item) => item.id === answerReviewPackageId),
+    [packages, answerReviewPackageId],
+  );
   const activeQuestionCounts = useMemo(
     () =>
       Object.fromEntries(
@@ -139,6 +157,32 @@ export default function App() {
     durationMinutes,
     shuffleQuestions,
   });
+
+  const eligibleQuestionPool = useMemo(
+    () => collectEligibleQuestions(packages, selectedSourcePackageIds),
+    [packages, selectedSourcePackageIds],
+  );
+  const eligibleQuestionCounts = useMemo(() => ({
+    PHYSICS: eligibleQuestionPool.filter((item) => item.question.subject === "PHYSICS").length,
+    CHEMISTRY: eligibleQuestionPool.filter((item) => item.question.subject === "CHEMISTRY").length,
+    MATHS: eligibleQuestionPool.filter((item) => item.question.subject === "MATHS" || item.question.subject === "MATHEMATICS").length,
+  }), [eligibleQuestionPool]);
+  const availabilityErrors = TEST_SUBJECTS.flatMap((subject) =>
+    activeQuestionCounts[subject] > eligibleQuestionCounts[subject]
+      ? [subject + ": requested " + activeQuestionCounts[subject] + ", but only " + eligibleQuestionCounts[subject] + " fully verified question/answer pair(s) are eligible."]
+      : [],
+  );
+  const scoringErrors = [
+    !Number.isFinite(scoringDefaults.correctMarks) || scoringDefaults.correctMarks <= 0
+      ? "Default correct marks must be a finite positive number."
+      : "",
+    !Number.isFinite(scoringDefaults.incorrectMarks) || scoringDefaults.incorrectMarks > 0
+      ? "Default incorrect marks must be zero or negative."
+      : "",
+  ].filter(Boolean);
+  const testConfigurationErrors = [...configurationErrors, ...availabilityErrors, ...scoringErrors];
+
+
 
   useEffect(() => {
     const element = googleButton.current;
@@ -183,10 +227,11 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
-    listPaperPackages(ownerId)
-      .then((items) => {
+    Promise.all([listPaperPackages(ownerId), listExamAttempts(ownerId)])
+      .then(([items, attempts]) => {
         if (active) {
           setPackages(items);
+          setLatestAttempt((current) => current ?? attempts[0] ?? null);
           setSelectedPackageId((current) =>
             current && items.some((item) => item.id === current)
               ? current
@@ -387,6 +432,8 @@ export default function App() {
     setPackages([]);
     setSelectedPackageId("");
     setReviewPackageId("");
+    setAnswerReviewPackageId("");
+    setLatestAttempt(null);
     setSelectedSourcePackageIds([]);
     setNotice("Local JeeCBT data for this profile has been deleted.");
   };
@@ -417,6 +464,38 @@ export default function App() {
     setSubjectQuestionCounts((current) => ({ ...current, [subject]: count }));
   };
 
+  const startTest = () => {
+    if (testConfigurationErrors.length > 0) {
+      setNotice(testConfigurationErrors.join(" "));
+      return;
+    }
+    const eligible = collectEligibleQuestions(packages, selectedSourcePackageIds);
+    const selection = selectTestQuestions(eligible, activeQuestionCounts, shuffleQuestions);
+    if (Object.keys(selection.shortages).length > 0) {
+      const details = Object.entries(selection.shortages).map(([subject, shortage]) =>
+        subject + ": " + shortage?.available + " available / " + shortage?.requested + " requested",
+      );
+      setNotice("Not enough verified questions to meet the requested quotas. " + details.join("; "));
+      return;
+    }
+    setExamQuestions(selection.questions);
+    setExamTitle(
+      selectedSourcePackages.length === 1
+        ? selectedSourcePackages[0].title + " · Practice test"
+        : "JEE mixed-paper practice test",
+    );
+    setError("");
+    setNotice("");
+    setTab("exam");
+  };
+
+  const completeExam = async (attempt: ExamAttempt) => {
+    await saveExamAttempt(attempt);
+    setLatestAttempt(attempt);
+    setTab("results");
+  };
+
+
   const totalAnswers = packages.reduce(
     (sum, item) =>
       sum + item.candidates.reduce((candidateSum, candidate) => candidateSum + mappingCount(candidate), 0),
@@ -435,6 +514,10 @@ export default function App() {
           <button className={tab === "library" ? "nav-link active" : "nav-link"} onClick={() => setTab("library")}>My library <span className="nav-count">{packages.length}</span></button>
           <button className={tab === "builder" ? "nav-link active" : "nav-link"} onClick={() => setTab("builder")}>Build a test</button>
           {tab === "review" && <button className="nav-link active" onClick={() => setTab("review")}>Review questions</button>}
+          {tab === "answer-review" && <button className="nav-link active" onClick={() => setTab("answer-review")}>Review answer keys</button>}
+          {tab === "exam" && <button className="nav-link active" onClick={() => setTab("exam")}>In progress</button>}
+          {tab === "results" && <button className="nav-link active" onClick={() => setTab("results")}>Latest result</button>}
+          {latestAttempt && tab !== "results" && <button className="nav-link" onClick={() => setTab("results")}>Latest score</button>}
         </nav>
         <div className="account-area">
           {user ? (
@@ -548,7 +631,7 @@ export default function App() {
                   <li><span>1</span><div><strong>Read every page</strong><p>Text is extracted in your browser. No file is sent to a server.</p></div></li>
                   <li><span>2</span><div><strong>Find answer keys</strong><p>We look for embedded keys and separately uploaded answer tables.</p></div></li>
                   <li><span>3</span><div><strong>Review the results</strong><p>Detected answers remain proposals until you verify them.</p></div></li>
-                  <li><span>4</span><div><strong>Prepare your test</strong><p>Question segmentation and the timed exam runner are the next build stage.</p></div></li>
+                  <li><span>4</span><div><strong>Verify and take a test</strong><p>Review question text and answer keys, then launch a timed test and see your score.</p></div></li>
                 </ol>
                 <div className="privacy-note"><LockGlyph /><span>Files and extracted content are stored in this browser's IndexedDB. Clearing site data can remove them.</span></div>
               </aside>
@@ -607,6 +690,9 @@ export default function App() {
                     )}
                     {selectedPackage.warnings.map((warning) => <div className="warning-line" key={warning}><span>!</span>{warning}</div>)}
                     <div className="detail-actions">
+                      {selectedPackage.candidates.length > 0 && (
+                        <button className="button button-outline" onClick={() => { setAnswerReviewPackageId(selectedPackage.id); setTab("answer-review"); }}>Review answer keys</button>
+                      )}
                       <button className="button button-primary" onClick={() => void segmentPackageQuestions(selectedPackage.id)}>
                         {selectedPackage.questions?.length ? "Re-run segmentation" : "Segment questions"} <ArrowGlyph />
                       </button>
@@ -615,7 +701,7 @@ export default function App() {
                           Review {selectedPackage.questions.length} questions
                         </button>
                       ) : null}
-                      <button className="button button-outline" onClick={() => setTab("builder")}>Configure a test</button>
+                      <button className="button button-outline" onClick={() => setTab("builder")}>Build a test</button>
                     </div>
                     {selectedPackage.questions?.length ? (
                       <div className="review-readiness-note">
@@ -639,6 +725,35 @@ export default function App() {
           />
         )}
 
+        {tab === "answer-review" && answerReviewPackage && (
+          <AnswerKeyReviewer
+            key={answerReviewPackage.id}
+            paperPackage={answerReviewPackage}
+            onBack={() => setTab("library")}
+            onSave={saveReviewedPackage}
+          />
+        )}
+
+        {tab === "exam" && examQuestions.length > 0 && (
+          <ExamRunner
+            ownerId={ownerId}
+            title={examTitle}
+            questions={examQuestions}
+            durationMinutes={durationMinutes}
+            defaults={scoringDefaults}
+            onComplete={completeExam}
+            onCancel={() => setTab("builder")}
+          />
+        )}
+
+        {tab === "results" && latestAttempt && (
+          <ExamResults
+            attempt={latestAttempt}
+            onBackToBuilder={() => setTab("builder")}
+            onBackToLibrary={() => setTab("library")}
+          />
+        )}
+
         {tab === "builder" && (
           <section className="page-section builder-section">
             <div className="page-heading simple-heading">
@@ -647,7 +762,7 @@ export default function App() {
                 <h1>Build a mixed-paper test</h1>
                 <p>Combine papers from your library, set a subject-wise question quota and choose your time limit.</p>
               </div>
-              <span className="coming-tag">Question bank in development</span>
+              <span className="coming-tag">{eligibleQuestionPool.length} eligible verified question(s)</span>
             </div>
             <div className="builder-layout">
               <div className="panel builder-form">
@@ -730,6 +845,7 @@ export default function App() {
                       );
                     })}
                   </div>
+                  <div className="eligible-counts"><span>Eligible now</span><strong>Physics {eligibleQuestionCounts.PHYSICS} · Chemistry {eligibleQuestionCounts.CHEMISTRY} · Mathematics {eligibleQuestionCounts.MATHS}</strong></div>
                   <div className="requested-total"><span>Total questions in this test</span><strong>{requestedQuestionTotal}</strong></div>
                 </div>
 
@@ -758,18 +874,27 @@ export default function App() {
                       <span><strong>Shuffle questions</strong><small>Randomly select questions from the combined eligible pool, without duplicates.</small></span>
                     </label>
                   </div>
+                  <div className="scoring-defaults">
+                    <label>Default marks for correct
+                      <input type="number" step="0.5" value={scoringDefaults.correctMarks} onChange={(event) => setScoringDefaults((current) => ({ ...current, correctMarks: Number(event.target.value) }))} />
+                    </label>
+                    <label>Default marks for incorrect
+                      <input type="number" step="0.5" value={scoringDefaults.incorrectMarks} onChange={(event) => setScoringDefaults((current) => ({ ...current, incorrectMarks: Number(event.target.value) }))} />
+                    </label>
+                    <small>Question-specific marking instructions override these defaults. Unanswered questions score zero. Multiple-correct questions use exact-set matching.</small>
+                  </div>
                   <div className="builder-validation">
-                    {configurationErrors.length === 0
-                      ? "Configuration is valid. The selected question bank still needs segmentation and answer verification."
-                      : configurationErrors.join(" ")}
+                    {testConfigurationErrors.length === 0
+                      ? "Ready to start. Every selected question has verified question text and a verified answer mapping."
+                      : [...configurationErrors, ...availabilityErrors].join(" ")}
                   </div>
                 </div>
 
-                <button className="button button-primary button-wide" disabled>
-                  Start examination <ArrowGlyph />
+                <button className="button button-primary button-wide" onClick={startTest} disabled={testConfigurationErrors.length > 0}>
+                  Start timed examination <ArrowGlyph />
                 </button>
                 <div className="disabled-reason">
-                  The current importer extracts answer-key candidates, not complete question records. The exam cannot start until questions are segmented, reviewed and linked to the correct paper-specific answer key.
+                  Only questions marked verified and linked to a verified answer mapping in the same paper package are included. Ambiguous or unsupported records remain excluded.
                 </div>
               </div>
 
@@ -785,7 +910,7 @@ export default function App() {
                     : selectedSourcePackages.map((item) => (
                       <div className="summary-source" key={item.id}>
                         <strong>{item.title}</strong>
-                        <span>{item.candidates.length} answer-key candidate(s) · {item.candidates.reduce((sum, candidate) => sum + mappingCount(candidate), 0)} proposed mapping(s)</span>
+                        <span>{item.questions?.filter((question) => question.status === "verified").length ?? 0} verified question(s) · {item.candidates.reduce((sum, candidate) => sum + candidate.mappings.filter((mapping) => mapping.reviewStatus === "verified").length, 0)} verified key(s)</span>
                       </div>
                     ))}
                 </div>
