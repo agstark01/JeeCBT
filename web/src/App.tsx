@@ -172,6 +172,16 @@ export default function App() {
       ? [subject + ": requested " + activeQuestionCounts[subject] + ", but only " + eligibleQuestionCounts[subject] + " fully verified question/answer pair(s) are eligible."]
       : [],
   );
+  const scoringErrors = [
+    !Number.isFinite(scoringDefaults.correctMarks) || scoringDefaults.correctMarks <= 0
+      ? "Default correct marks must be a finite positive number."
+      : "",
+    !Number.isFinite(scoringDefaults.incorrectMarks) || scoringDefaults.incorrectMarks > 0
+      ? "Default incorrect marks must be zero or negative."
+      : "",
+  ].filter(Boolean);
+  const testConfigurationErrors = [...configurationErrors, ...availabilityErrors, ...scoringErrors];
+
 
 
   useEffect(() => {
@@ -455,8 +465,8 @@ export default function App() {
   };
 
   const startTest = () => {
-    if (configurationErrors.length > 0) {
-      setNotice(configurationErrors.join(" "));
+    if (testConfigurationErrors.length > 0) {
+      setNotice(testConfigurationErrors.join(" "));
       return;
     }
     const eligible = collectEligibleQuestions(packages, selectedSourcePackageIds);
@@ -874,13 +884,13 @@ export default function App() {
                     <small>Question-specific marking instructions override these defaults. Unanswered questions score zero. Multiple-correct questions use exact-set matching.</small>
                   </div>
                   <div className="builder-validation">
-                    {configurationErrors.length === 0 && availabilityErrors.length === 0
+                    {testConfigurationErrors.length === 0
                       ? "Ready to start. Every selected question has verified question text and a verified answer mapping."
                       : [...configurationErrors, ...availabilityErrors].join(" ")}
                   </div>
                 </div>
 
-                <button className="button button-primary button-wide" onClick={startTest} disabled={configurationErrors.length > 0 || availabilityErrors.length > 0}>
+                <button className="button button-primary button-wide" onClick={startTest} disabled={testConfigurationErrors.length > 0}>
                   Start timed examination <ArrowGlyph />
                 </button>
                 <div className="disabled-reason">
