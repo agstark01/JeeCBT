@@ -33,10 +33,6 @@ The web client is a static React + TypeScript + Vite application in the web dire
 
 Run the browser app:
 
-    cd web
-    cp .env.example .env.local
-    npm install
-    npm run dev
 
 See web/README.md for Firebase setup and local development details.
 
