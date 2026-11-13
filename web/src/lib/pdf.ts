@@ -8,7 +8,12 @@ const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const MAX_PAGES = 400;
 const LINE_TOLERANCE = 2.5;
 
-function reconstructTextLines(items: pdfjs.TextItem[]): string {
+interface PositionedTextItem {
+  str: string;
+  transform: number[];
+}
+
+function reconstructTextLines(items: PositionedTextItem[]): string {
   const sorted = [...items].sort((left, right) => {
     const yDifference = right.transform[5] - left.transform[5];
     if (Math.abs(yDifference) > LINE_TOLERANCE) return yDifference;
@@ -77,7 +82,8 @@ export async function extractPdfLocally(
       const page = await pdf.getPage(pageNumber);
       const content = await page.getTextContent();
       const textItems = content.items.filter(
-        (item): item is pdfjs.TextItem => "str" in item,
+        (item): item is PositionedTextItem =>
+          "str" in item && "transform" in item,
       );
       const text = reconstructTextLines(textItems);
 
