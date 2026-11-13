@@ -112,7 +112,13 @@ export default function AnswerKeyReviewer({
         if (mapping.reviewStatus === "rejected") continue;
         const match = evaluateAnswerMapping(draftPackage, candidate, mapping);
         const questionId = match.selectedQuestion?.id;
-        if (match.status === "matched" && questionId) {
+        if (
+          match.status === "matched" &&
+          questionId &&
+          match.selectedQuestion &&
+          canVerifyAnswerMapping(draftPackage, candidate, mapping) &&
+          isSupportedAnswerFormat(match.selectedQuestion, mapping.answerRaw)
+        ) {
           counts.set(questionId, (counts.get(questionId) ?? 0) + 1);
         }
       }
