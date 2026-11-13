@@ -111,4 +111,31 @@ describe("question segmentation", () => {
     expect(result.questions[0].status).toBe("needs_review");
     expect(result.warnings.some((warning) => warning.includes("little selectable text"))).toBe(true);
   });
+
+  it("creates a separate option crop from positioned A-D option markers", () => {
+    const source = document("visual.pdf", "question_paper", [
+      "Q1. Calculate the result.\\n(A) First option\\n(B) Second option\\nQ2. Next question.",
+    ]);
+    source.pages[0].lines = [
+      { text: "Q1. Calculate the result.", x: 0.05, y: 0.10, width: 0.55, height: 0.02, columnIndex: 0 },
+      { text: "(A) First option", x: 0.08, y: 0.32, width: 0.35, height: 0.02, columnIndex: 0 },
+      { text: "(B) Second option", x: 0.08, y: 0.42, width: 0.38, height: 0.02, columnIndex: 0 },
+      { text: "Q2. Next question.", x: 0.05, y: 0.60, width: 0.45, height: 0.02, columnIndex: 0 },
+    ];
+
+    const result = segmentQuestions([source]);
+    const first = result.questions[0];
+
+    expect(first.sourceRegions?.[0]).toMatchObject({ kind: "question", pageNumber: 1 });
+    expect(first.optionRegions).toHaveLength(1);
+    expect(first.optionRegions?.[0]).toMatchObject({
+      kind: "options",
+      pageNumber: 1,
+      x: 0.035,
+    });
+    expect(first.optionRegions?.[0].y).toBeCloseTo(0.308);
+    expect(first.optionRegions?.[0].height).toBeCloseTo(0.28);
+    expect(first.hasOptions).toBe(true);
+  });
+
 });
