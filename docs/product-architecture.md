@@ -130,9 +130,13 @@ A detected key is a proposed extraction, not verified truth. Every imported pape
 
 ## Current implementation status
 
-- Multi-PDF FastAPI inspection endpoint exists.
-- Selectable text is extracted page by page.
-- Embedded numbered-key format is supported.
-- Subject-wise PAPER-1 PHYSICS/CHEMISTRY/MATHS tables with Ques./Ans. row pairs are supported on the feature branch.
-- The current parser is rule-based and intentionally conservative.
-- OCR, full question segmentation, database persistence, Google authentication, Drive backup, and the web exam client are not implemented yet.
+- The static React/Vite browser application imports PDFs with PDF.js and stores source Blobs, extracted text/geometry, question records and answer mappings in IndexedDB.
+- Embedded numbered-key and subject-wise Ques./Ans. table layouts are supported as initial rule-based adapters. The parser is intentionally conservative.
+- Marker-based question segmentation, positioned visual question/option crops, editable question review, subject block/range assignment, and source-page provenance are implemented.
+- Question-type/marking-rule inference supports a limited set of explicit question, section and question-range instructions. Unclear or conflicting rules remain unclassified.
+- Answer-key review supports source/target document selection, local PDF source preview, raw answer edits, exact question reconciliation, ambiguity resolution and independent verification.
+- Test selection filters to verified question text plus one verified package-scoped answer mapping. Per-subject sampling is without replacement.
+- The browser CBT runner supports single choice, exact-set multi-select and numeric input, a local countdown, navigation, manual/time-expiry submission, total score and question-wise result display.
+- Submitted attempts are stored in IndexedDB. In-progress responses are not yet autosaved, so a reload before submission loses that attempt.
+- The current scoring model uses question-specific marks when available and configurable fallback marks otherwise. JEE Advanced partial-credit multiple-correct schemes and other exam-specific numeric/response formats remain future work.
+- Local OCR for scanned pages, fully general PDF layout parsing, Drive backup, in-progress attempt recovery, and a server-authoritative/proctored timer are not implemented.
