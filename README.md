@@ -31,7 +31,10 @@ The web client is a static React + TypeScript + Vite application in the web dire
 - Optional Google Identity Services sign-in validates a Google ID token in the browser and uses the subject as a local IndexedDB namespace. It does not upload papers or sync data.
 - The mixed-paper test builder can select multiple imported packages while keeping each paper paired with its own answer-key candidates.
 - The builder supports per-subject question quotas, a user-selected duration, and a shuffle preference. These are configuration controls only; question sampling is not active until verified question records exist.
-- Starting an exam remains disabled until question segmentation and verified question storage are implemented.
+- Initial question segmentation recognizes common line-start question markers and creates draft records with source-page provenance and numbering blocks.
+- The local question reviewer supports editing extracted text and metadata, assigning subjects by block or question-number range, previewing the original PDF page, and linking a proposed answer-key mapping.
+- Question verification and answer-key verification are separate. A linked answer candidate is still unverified.
+- Starting an exam remains disabled until question records and their answer mappings have been reviewed and made eligible for scoring.
 
 Run the browser app:
 
@@ -66,7 +69,7 @@ The .gitignore excludes PDF files, local upload directories, virtual environment
 
 The browser stores local data in IndexedDB. This data is specific to the browser and device. Google sign-in alone does not provide backup or synchronization. Google Drive integration is a separate future opt-in feature.
 
-See docs/local-first-browser-architecture.md for the data model and privacy boundaries.
+See docs/local-first-browser-architecture.md for the data model and privacy boundaries. See [question segmentation and review](docs/question-segmentation-review.md) for the current parser scope and limitations.
 
 ## Development roadmap
 
@@ -77,7 +80,8 @@ See docs/local-first-browser-architecture.md for the data model and privacy boun
 - [x] Local IndexedDB storage and paper library
 - [x] Optional Google sign-in with per-account local data namespace
 - [ ] OCR for scanned pages
-- [ ] Full question segmentation and subject/section identification
+- [x] Initial marker-based question segmentation and editable question-review workflow (layout-dependent; not complete for every PDF format)
+- [ ] Robust subject/section detection, OCR, and extraction of diagrams, tables, equations, and shared instructions
 - [ ] Extraction of mathematical expressions, chemical notation, tables, and diagrams
 - [ ] Editable review and verification workflow
 - [ ] Extensible question type and marking-scheme registry

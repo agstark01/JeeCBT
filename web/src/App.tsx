@@ -12,6 +12,8 @@ import {
 } from "./lib/db";
 import { discoverAnswerKeys } from "./lib/answer-discovery";
 import { extractPdfLocally } from "./lib/pdf";
+import QuestionReviewer from "./QuestionReviewer";
+import { segmentQuestions } from "./lib/question-segmentation";
 import {
   getQuestionTotal,
   TEST_SUBJECTS,
@@ -25,7 +27,7 @@ import type {
   PaperPackage,
 } from "./types";
 
-type Tab = "import" | "library" | "builder";
+type Tab = "import" | "library" | "builder" | "review";
 
 interface PendingFile {
   file: File;
@@ -94,6 +96,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [selectedPackageId, setSelectedPackageId] = useState("");
+  const [reviewPackageId, setReviewPackageId] = useState("");
   const [selectedSourcePackageIds, setSelectedSourcePackageIds] = useState<string[]>([]);
   const [subjects, setSubjects] = useState<TestSubject[]>([...TEST_SUBJECTS]);
   const [subjectQuestionCounts, setSubjectQuestionCounts] = useState<SubjectQuestionCounts>({
@@ -114,6 +117,10 @@ export default function App() {
   const selectedSourcePackages = useMemo(
     () => packages.filter((item) => selectedSourcePackageIds.includes(item.id)),
     [packages, selectedSourcePackageIds],
+  );
+  const reviewPackage = useMemo(
+    () => packages.find((item) => item.id === reviewPackageId),
+    [packages, reviewPackageId],
   );
   const activeQuestionCounts = useMemo(
     () =>
@@ -327,7 +334,47 @@ export default function App() {
     setPackages(refreshed);
     setSelectedSourcePackageIds((current) => current.filter((packageId) => packageId !== id));
     if (selectedPackageId === id) setSelectedPackageId(refreshed[0]?.id ?? "");
+    if (reviewPackageId === id) {
+      setReviewPackageId("");
+      setTab("library");
+    }
     setNotice("The imported paper package was deleted from this browser.");
+  };
+
+  const segmentPackageQuestions = async (packageId: string) => {
+    const source = packages.find((item) => item.id === packageId);
+    if (!source) return;
+    if (source.questions?.length && !window.confirm(
+      "Run segmentation again? This replaces the current question drafts and discards their manual review edits.",
+    )) return;
+
+    setError("");
+    setNotice("");
+    try {
+      const result = segmentQuestions(source.documents);
+      const updated: PaperPackage = {
+        ...source,
+        questions: result.questions,
+        questionSegmentationWarnings: result.warnings,
+        questionSegmentationAt: Date.now(),
+      };
+      await savePaperPackage(updated);
+      setPackages((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setReviewPackageId(updated.id);
+      setTab("review");
+      if (result.questions.length === 0) {
+        setNotice("No question markers were detected. Check document roles and the source PDF.");
+      } else {
+        setNotice("Detected " + result.questions.length + " draft question(s). Review the text, subject and answer-key association before using them.");
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to segment questions locally.");
+    }
+  };
+
+  const saveReviewedPackage = async (updated: PaperPackage) => {
+    await savePaperPackage(updated);
+    setPackages((current) => current.map((item) => item.id === updated.id ? updated : item));
   };
 
   const handleClearData = async () => {
@@ -338,6 +385,7 @@ export default function App() {
     await clearLocalData(ownerId);
     setPackages([]);
     setSelectedPackageId("");
+    setReviewPackageId("");
     setSelectedSourcePackageIds([]);
     setNotice("Local JeeCBT data for this profile has been deleted.");
   };
@@ -385,6 +433,7 @@ export default function App() {
           <button className={tab === "import" ? "nav-link active" : "nav-link"} onClick={() => setTab("import")}>Import papers</button>
           <button className={tab === "library" ? "nav-link active" : "nav-link"} onClick={() => setTab("library")}>My library <span className="nav-count">{packages.length}</span></button>
           <button className={tab === "builder" ? "nav-link active" : "nav-link"} onClick={() => setTab("builder")}>Build a test</button>
+          {tab === "review" && <button className="nav-link active" onClick={() => setTab("review")}>Review questions</button>}
         </nav>
         <div className="account-area">
           {user ? (
@@ -556,13 +605,37 @@ export default function App() {
                       ))
                     )}
                     {selectedPackage.warnings.map((warning) => <div className="warning-line" key={warning}><span>!</span>{warning}</div>)}
-                    <div className="detail-actions"><button className="button button-primary" onClick={() => setTab("builder")}>Configure a test <ArrowGlyph /></button><span>Full question extraction and answer verification are next.</span></div>
+                    <div className="detail-actions">
+                      <button className="button button-primary" onClick={() => void segmentPackageQuestions(selectedPackage.id)}>
+                        {selectedPackage.questions?.length ? "Re-run segmentation" : "Segment questions"} <ArrowGlyph />
+                      </button>
+                      {selectedPackage.questions?.length ? (
+                        <button className="button button-outline" onClick={() => { setReviewPackageId(selectedPackage.id); setTab("review"); }}>
+                          Review {selectedPackage.questions.length} questions
+                        </button>
+                      ) : null}
+                      <button className="button button-outline" onClick={() => setTab("builder")}>Configure a test</button>
+                    </div>
+                    {selectedPackage.questions?.length ? (
+                      <div className="review-readiness-note">
+                        {selectedPackage.questions.filter((question) => question.status === "verified").length} question(s) marked verified · {selectedPackage.questions.filter((question) => question.subject === "UNASSIGNED").length} still need a subject
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </div>
             )}
             <div className="danger-zone"><div><strong>Delete local data</strong><p>Remove every imported package for the current browser profile.</p></div><button className="button button-outline danger-outline" onClick={() => void handleClearData()} disabled={packages.length === 0}>Clear local library</button></div>
           </section>
+        )}
+
+        {tab === "review" && reviewPackage && (
+          <QuestionReviewer
+            key={reviewPackage.id}
+            paperPackage={reviewPackage}
+            onBack={() => setTab("library")}
+            onSave={saveReviewedPackage}
+          />
         )}
 
         {tab === "builder" && (
