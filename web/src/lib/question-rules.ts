@@ -31,8 +31,8 @@ function inferMarks(text: string): { correctMarks?: number; incorrectMarks?: num
     text.match(/(?:\+\s*(\d+(?:\.\d+)?)\s*marks?\s*(?:for|per)\s*correct|(?:(\d+(?:\.\d+)?)\s*marks?\s*(?:will\s+be\s+)?awarded\s+for\s+(?:each\s+)?correct)/i);
   const incorrect =
     text.match(/(?:-\s*(\d+(?:\.\d+)?)\s*marks?\s*(?:for|per)\s*incorrect|(?:(\d+(?:\.\d+)?)\s*marks?\s*(?:will\s+be\s+)?deducted\s+for\s+(?:each\s+)?incorrect))/i);
-  const correctValue = correct ? Number(correct[1] ?? correct[2]) : undefined;
-  const incorrectValue = incorrect ? Number(incorrect[1] ?? incorrect[2]) : undefined;
+  const correctValue = correct ? Number(correct[1] ?? correct[2] ?? NaN) : undefined;
+  const incorrectValue = incorrect ? Number(incorrect[1] ?? incorrect[2] ?? NaN) : undefined;
   return {
     correctMarks: Number.isFinite(correctValue) ? correctValue : undefined,
     incorrectMarks: Number.isFinite(incorrectValue) ? -Math.abs(incorrectValue) : undefined,
