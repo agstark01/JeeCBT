@@ -20,9 +20,6 @@ const subjectOptions: Array<{ value: Subject | ""; label: string }> = [
   { value: "MATHS", label: "Mathematics" },
 ];
 
-function sourceName(pkg: PaperPackage, id?: string): string {
-  return pkg.documents.find((document) => document.id === id)?.filename ?? "Unresolved source PDF";
-}
 
 function mappingStatusLabel(status: AnswerMapping["reviewStatus"]): string {
   return status === "verified" ? "Verified key" : status === "rejected" ? "Rejected" : "Needs review";
