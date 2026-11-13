@@ -12,6 +12,13 @@ import {
 } from "./lib/db";
 import { discoverAnswerKeys } from "./lib/answer-discovery";
 import { extractPdfLocally } from "./lib/pdf";
+import {
+  getQuestionTotal,
+  TEST_SUBJECTS,
+  validateTestDraft,
+  type SubjectQuestionCounts,
+  type TestSubject,
+} from "./lib/test-builder";
 import type {
   AnswerKeyCandidate,
   DocumentRole,
@@ -87,9 +94,15 @@ export default function App() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [selectedPackageId, setSelectedPackageId] = useState("");
-  const [subjects, setSubjects] = useState(["PHYSICS", "CHEMISTRY", "MATHS"]);
-  const [questionCount, setQuestionCount] = useState(30);
+  const [selectedSourcePackageIds, setSelectedSourcePackageIds] = useState<string[]>([]);
+  const [subjects, setSubjects] = useState<TestSubject[]>([...TEST_SUBJECTS]);
+  const [subjectQuestionCounts, setSubjectQuestionCounts] = useState<SubjectQuestionCounts>({
+    PHYSICS: 10,
+    CHEMISTRY: 10,
+    MATHS: 10,
+  });
   const [durationMinutes, setDurationMinutes] = useState(60);
+  const [shuffleQuestions, setShuffleQuestions] = useState(true);
   const fileInput = useRef<HTMLInputElement>(null);
   const googleButton = useRef<HTMLDivElement>(null);
 
@@ -98,6 +111,27 @@ export default function App() {
     () => packages.find((item) => item.id === selectedPackageId) ?? packages[0],
     [packages, selectedPackageId],
   );
+  const selectedSourcePackages = useMemo(
+    () => packages.filter((item) => selectedSourcePackageIds.includes(item.id)),
+    [packages, selectedSourcePackageIds],
+  );
+  const activeQuestionCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        TEST_SUBJECTS.map((subject) => [
+          subject,
+          subjects.includes(subject) ? subjectQuestionCounts[subject] : 0,
+        ]),
+      ) as SubjectQuestionCounts,
+    [subjects, subjectQuestionCounts],
+  );
+  const requestedQuestionTotal = getQuestionTotal(activeQuestionCounts);
+  const configurationErrors = validateTestDraft({
+    sourcePackageIds: selectedSourcePackageIds,
+    questionCounts: activeQuestionCounts,
+    durationMinutes,
+    shuffleQuestions,
+  });
 
   useEffect(() => {
     const element = googleButton.current;
@@ -151,6 +185,10 @@ export default function App() {
               ? current
               : items[0]?.id ?? "",
           );
+          setSelectedSourcePackageIds((current) => {
+            const valid = current.filter((id) => items.some((item) => item.id === id));
+            return valid.length > 0 ? valid : items[0] ? [items[0].id] : [];
+          });
         }
       })
       .catch(() => {
@@ -264,6 +302,9 @@ export default function App() {
       const refreshed = await listPaperPackages(ownerId);
       setPackages(refreshed);
       setSelectedPackageId(record.id);
+      setSelectedSourcePackageIds((current) =>
+        current.includes(record.id) ? current : [...current, record.id],
+      );
       setPendingFiles([]);
       if (fileInput.current) fileInput.current.value = "";
       setPaperTitle("");
@@ -284,6 +325,7 @@ export default function App() {
     await deletePaperPackage(id, ownerId);
     const refreshed = await listPaperPackages(ownerId);
     setPackages(refreshed);
+    setSelectedSourcePackageIds((current) => current.filter((packageId) => packageId !== id));
     if (selectedPackageId === id) setSelectedPackageId(refreshed[0]?.id ?? "");
     setNotice("The imported paper package was deleted from this browser.");
   };
@@ -296,6 +338,7 @@ export default function App() {
     await clearLocalData(ownerId);
     setPackages([]);
     setSelectedPackageId("");
+    setSelectedSourcePackageIds([]);
     setNotice("Local JeeCBT data for this profile has been deleted.");
   };
 
@@ -305,12 +348,24 @@ export default function App() {
     setNotice("Signed out of JeeCBT. Your local paper data has not been deleted.");
   };
 
-  const toggleSubject = (subject: string) => {
+  const toggleSubject = (subject: TestSubject) => {
     setSubjects((current) =>
       current.includes(subject)
         ? current.filter((item) => item !== subject)
         : [...current, subject],
     );
+  };
+
+  const toggleSourcePackage = (packageId: string) => {
+    setSelectedSourcePackageIds((current) =>
+      current.includes(packageId)
+        ? current.filter((id) => id !== packageId)
+        : [...current, packageId],
+    );
+  };
+
+  const updateSubjectQuestionCount = (subject: TestSubject, count: number) => {
+    setSubjectQuestionCounts((current) => ({ ...current, [subject]: count }));
   };
 
   const totalAnswers = packages.reduce(
@@ -512,33 +567,161 @@ export default function App() {
 
         {tab === "builder" && (
           <section className="page-section builder-section">
-            <div className="page-heading simple-heading"><div><div className="eyebrow">CUSTOM PRACTICE SESSION</div><h1>Build a test</h1><p>Choose a paper, subjects, question count and your available time.</p></div><span className="coming-tag">Exam runner in development</span></div>
+            <div className="page-heading simple-heading">
+              <div>
+                <div className="eyebrow">CUSTOM PRACTICE SESSION</div>
+                <h1>Build a mixed-paper test</h1>
+                <p>Combine papers from your library, set a subject-wise question quota and choose your time limit.</p>
+              </div>
+              <span className="coming-tag">Question bank in development</span>
+            </div>
             <div className="builder-layout">
               <div className="panel builder-form">
-                <h2>Test configuration</h2>
-                <label className="field-label">Question source
-                  <select value={selectedPackage?.id ?? ""} onChange={(event) => setSelectedPackageId(event.target.value)} disabled={packages.length === 0}>
-                    {packages.length === 0 ? <option value="">Import a paper first</option> : packages.map((item) => <option value={item.id} key={item.id}>{item.title}</option>)}
-                  </select>
-                </label>
-                <div className="field-label">Subjects</div>
-                <div className="subject-options">
-                  {["PHYSICS", "CHEMISTRY", "MATHS"].map((subject) => <label key={subject} className={subjects.includes(subject) ? "subject-option checked" : "subject-option"}><input type="checkbox" checked={subjects.includes(subject)} onChange={() => toggleSubject(subject)} /><span className={"subject-initial " + subject.toLowerCase().slice(0, 1)}>{subject.slice(0, 1)}</span>{subject === "MATHS" ? "Mathematics" : subject.charAt(0) + subject.slice(1).toLowerCase()}</label>)}
+                <div className="builder-config-group">
+                  <div className="builder-group-heading">
+                    <span>01</span>
+                    <div><h2>Choose source papers</h2><p>Select multiple imported papers. Each package keeps its own answer-key candidates attached.</p></div>
+                  </div>
+                  {packages.length === 0 ? (
+                    <div className="inline-empty">Your library is empty. Import one or more question papers first.</div>
+                  ) : (
+                    <div className="source-options">
+                      {packages.map((item) => {
+                        const mappingTotal = item.candidates.reduce(
+                          (sum, candidate) => sum + mappingCount(candidate),
+                          0,
+                        );
+                        const keySummary = item.answerKeyStatus === "detected_needs_review"
+                          ? mappingTotal + " proposed answer mappings · verification required"
+                          : item.answerKeyStatus === "needs_ocr"
+                            ? "Some pages need OCR"
+                            : "No supported answer key detected";
+                        return (
+                          <label
+                            key={item.id}
+                            className={selectedSourcePackageIds.includes(item.id) ? "source-option selected" : "source-option"}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedSourcePackageIds.includes(item.id)}
+                              onChange={() => toggleSourcePackage(item.id)}
+                            />
+                            <span className="source-option-copy">
+                              <strong>{item.title}</strong>
+                              <small>{item.examProfile.replace("_", " ").toUpperCase()} · {item.documents.length} PDF(s)</small>
+                              <small>{keySummary}</small>
+                            </span>
+                            <span className="source-check" aria-hidden="true">{selectedSourcePackageIds.includes(item.id) ? "✓" : ""}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <p className="builder-helper">
+                    Answer keys are never shared between papers. For example, Q1 in one paper remains a different question from Q1 in another paper.
+                  </p>
                 </div>
-                <div className="builder-fields">
-                  <label className="field-label">Number of questions<input type="number" min="1" max="180" value={questionCount} onChange={(event) => setQuestionCount(Number(event.target.value))} /></label>
-                  <label className="field-label">Time limit (minutes)<input type="number" min="1" max="360" value={durationMinutes} onChange={(event) => setDurationMinutes(Number(event.target.value))} /></label>
+
+                <div className="builder-config-group">
+                  <div className="builder-group-heading">
+                    <span>02</span>
+                    <div><h2>Set question count by subject</h2><p>Choose the subjects and the exact number of questions to draw from each.</p></div>
+                  </div>
+                  <div className="subject-options">
+                    {TEST_SUBJECTS.map((subject) => {
+                      const checked = subjects.includes(subject);
+                      const subjectName = subject === "MATHS" ? "Mathematics" : subject.charAt(0) + subject.slice(1).toLowerCase();
+                      return (
+                        <div className={checked ? "subject-config-card checked" : "subject-config-card"} key={subject}>
+                          <label className="subject-option">
+                            <input type="checkbox" checked={checked} onChange={() => toggleSubject(subject)} />
+                            <span className={"subject-initial " + subject.toLowerCase().slice(0, 1)}>{subject.slice(0, 1)}</span>
+                            <span>{subjectName}</span>
+                          </label>
+                          <label className="subject-count-label">
+                            Questions
+                            <input
+                              className="subject-count-input"
+                              type="number"
+                              min="1"
+                              max="180"
+                              step="1"
+                              value={subjectQuestionCounts[subject]}
+                              disabled={!checked}
+                              onChange={(event) => updateSubjectQuestionCount(subject, Number(event.target.value))}
+                              aria-label={subjectName + " question count"}
+                            />
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="requested-total"><span>Total questions in this test</span><strong>{requestedQuestionTotal}</strong></div>
                 </div>
-                <button className="button button-primary button-wide" disabled>Start examination <ArrowGlyph /></button>
-                <div className="disabled-reason">The question segmentation and verified question bank are not implemented yet. This form records the intended test configuration; it cannot start a real test yet.</div>
+
+                <div className="builder-config-group">
+                  <div className="builder-group-heading">
+                    <span>03</span>
+                    <div><h2>Exam settings</h2><p>Set your available time and choose how questions are selected and ordered.</p></div>
+                  </div>
+                  <div className="builder-fields">
+                    <label className="field-label">Time limit (minutes)
+                      <input
+                        type="number"
+                        min="1"
+                        max="360"
+                        step="1"
+                        value={durationMinutes}
+                        onChange={(event) => setDurationMinutes(Number(event.target.value))}
+                      />
+                    </label>
+                    <label className="shuffle-option">
+                      <input
+                        type="checkbox"
+                        checked={shuffleQuestions}
+                        onChange={(event) => setShuffleQuestions(event.target.checked)}
+                      />
+                      <span><strong>Shuffle questions</strong><small>Randomly select questions from the combined eligible pool, without duplicates.</small></span>
+                    </label>
+                  </div>
+                  <div className="builder-validation">
+                    {configurationErrors.length === 0
+                      ? "Configuration is valid. The selected question bank still needs segmentation and answer verification."
+                      : configurationErrors.join(" ")}
+                  </div>
+                </div>
+
+                <button className="button button-primary button-wide" disabled>
+                  Start examination <ArrowGlyph />
+                </button>
+                <div className="disabled-reason">
+                  The current importer extracts answer-key candidates, not complete question records. The exam cannot start until questions are segmented, reviewed and linked to the correct paper-specific answer key.
+                </div>
               </div>
+
               <aside className="panel builder-summary">
                 <h3>Session summary</h3>
-                <div className="summary-row"><span>Source</span><strong>{selectedPackage?.title ?? "No paper selected"}</strong></div>
-                <div className="summary-row"><span>Subjects</span><strong>{subjects.length} selected</strong></div>
-                <div className="summary-row"><span>Questions</span><strong>{questionCount || "—"}</strong></div>
+                <div className="summary-row">
+                  <span>Source papers</span>
+                  <strong>{selectedSourcePackages.length} selected</strong>
+                </div>
+                <div className="summary-source-list">
+                  {selectedSourcePackages.length === 0
+                    ? <span className="summary-muted">No source paper selected</span>
+                    : selectedSourcePackages.map((item) => (
+                      <div className="summary-source" key={item.id}>
+                        <strong>{item.title}</strong>
+                        <span>{item.candidates.length} answer-key candidate(s) · {item.candidates.reduce((sum, candidate) => sum + mappingCount(candidate), 0)} proposed mapping(s)</span>
+                      </div>
+                    ))}
+                </div>
+                <div className="summary-row"><span>Physics</span><strong>{subjects.includes("PHYSICS") ? subjectQuestionCounts.PHYSICS : 0}</strong></div>
+                <div className="summary-row"><span>Chemistry</span><strong>{subjects.includes("CHEMISTRY") ? subjectQuestionCounts.CHEMISTRY : 0}</strong></div>
+                <div className="summary-row"><span>Mathematics</span><strong>{subjects.includes("MATHS") ? subjectQuestionCounts.MATHS : 0}</strong></div>
+                <div className="summary-row"><span>Total questions</span><strong>{requestedQuestionTotal}</strong></div>
                 <div className="summary-row"><span>Duration</span><strong>{durationMinutes || "—"} min</strong></div>
-                <div className="summary-note"><LockGlyph /> Your test answers and score will be saved locally when the exam runner is available.</div>
+                <div className="summary-row"><span>Selection order</span><strong>{shuffleQuestions ? "Random shuffle" : "Source order"}</strong></div>
+                <div className="summary-note"><LockGlyph /> Your papers and corresponding answer-key records remain local. Actual question sampling will use verified records from these selected packages.</div>
               </aside>
             </div>
           </section>
