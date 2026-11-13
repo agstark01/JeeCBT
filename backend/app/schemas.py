@@ -28,6 +28,8 @@ class AnswerMapping(BaseModel):
     answer_raw: str
     source_filename: str
     source_page: int
+    subject: str | None = None
+    paper_label: str | None = None
     review_status: Literal["proposed", "verified", "rejected"] = "proposed"
 
 
@@ -38,6 +40,8 @@ class AnswerKeyCandidate(BaseModel):
     extraction_method: str
     confidence: float = Field(ge=0.0, le=1.0)
     raw_excerpt: str
+    subject: str | None = None
+    paper_label: str | None = None
     mappings: list[AnswerMapping] = Field(default_factory=list)
     review_required: bool = True
 
