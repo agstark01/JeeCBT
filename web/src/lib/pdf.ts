@@ -25,7 +25,7 @@ function renderTextLine(line: TextLine): string {
     .map((part) => part.text.trim())
     .filter(Boolean)
     .join(" ")
-    .replace(/[ \\t]+/g, " ")
+    .replace(/[ \t]+/g, " ")
     .trim();
 }
 
@@ -113,7 +113,7 @@ export function reconstructTextLines(
   return orderedLines
     .map(renderTextLine)
     .filter(Boolean)
-    .join("\\n");
+    .join("\n");
 }
 
 export async function extractPdfLocally(
