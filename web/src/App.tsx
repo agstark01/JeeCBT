@@ -13,6 +13,7 @@ import {
 import { discoverAnswerKeys } from "./lib/answer-discovery";
 import { extractPdfLocally } from "./lib/pdf";
 import QuestionReviewer from "./QuestionReviewer";
+import AnswerKeyReviewer from "./AnswerKeyReviewer";
 import { segmentQuestions } from "./lib/question-segmentation";
 import {
   getQuestionTotal,
@@ -27,7 +28,7 @@ import type {
   PaperPackage,
 } from "./types";
 
-type Tab = "import" | "library" | "builder" | "review";
+type Tab = "import" | "library" | "builder" | "review" | "answers";
 
 interface PendingFile {
   file: File;
@@ -355,6 +356,7 @@ export default function App() {
       const updated: PaperPackage = {
         ...source,
         questions: result.questions,
+        questionRules: result.rules,
         questionSegmentationWarnings: result.warnings,
         questionSegmentationAt: Date.now(),
       };
@@ -434,6 +436,7 @@ export default function App() {
           <button className={tab === "library" ? "nav-link active" : "nav-link"} onClick={() => setTab("library")}>My library <span className="nav-count">{packages.length}</span></button>
           <button className={tab === "builder" ? "nav-link active" : "nav-link"} onClick={() => setTab("builder")}>Build a test</button>
           {tab === "review" && <button className="nav-link active" onClick={() => setTab("review")}>Review questions</button>}
+          {tab === "answers" && <button className="nav-link active" onClick={() => setTab("answers")}>Review answer keys</button>}
         </nav>
         <div className="account-area">
           {user ? (
@@ -614,6 +617,9 @@ export default function App() {
                           Review {selectedPackage.questions.length} questions
                         </button>
                       ) : null}
+                      <button className="button button-outline" onClick={() => { setReviewPackageId(selectedPackage.id); setTab("answers"); }}>
+                        Review answer keys · {selectedPackage.candidates.reduce((sum, item) => sum + item.mappings.length, 0)}
+                      </button>
                       <button className="button button-outline" onClick={() => setTab("builder")}>Configure a test</button>
                     </div>
                     {selectedPackage.questions?.length ? (
@@ -631,6 +637,15 @@ export default function App() {
 
         {tab === "review" && reviewPackage && (
           <QuestionReviewer
+            key={reviewPackage.id}
+            paperPackage={reviewPackage}
+            onBack={() => setTab("library")}
+            onSave={saveReviewedPackage}
+          />
+        )}
+
+        {tab === "answers" && reviewPackage && (
+          <AnswerKeyReviewer
             key={reviewPackage.id}
             paperPackage={reviewPackage}
             onBack={() => setTab("library")}
