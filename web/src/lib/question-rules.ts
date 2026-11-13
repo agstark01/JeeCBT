@@ -28,10 +28,10 @@ function inferType(text: string): Exclude<QuestionType, "unknown"> | undefined {
 
 function inferMarks(text: string): { correctMarks?: number; incorrectMarks?: number } {
   const correct = text.match(
-    /(?:\\+\\s*(\\d+(?:\\.\\d+)?)\\s*marks?\\s*(?:for|per)\\s*correct|(\\d+(?:\\.\\d+)?)\\s*marks?\\s*(?:will\\s+be\\s+)?awarded\\s+for\\s+(?:each\\s+)?correct)/i,
+    /(?:\\+\\s*(\\d+(?:\\.\\d+)?)\\s*marks?\\s*(?:for|per)\\s*correct(?:\\s+answer)?|(\\d+(?:\\.\\d+)?)\\s*marks?\\s*(?:will\\s+be\\s+)?awarded\\s+for\\s+(?:each\\s+)?correct)/i,
   );
   const incorrect = text.match(
-    /(?:-\\s*(\\d+(?:\\.\\d+)?)\\s*marks?\\s*(?:for|per)\\s*incorrect|(\\d+(?:\\.\\d+)?)\\s*marks?\\s*(?:will\\s+be\\s+)?deducted\\s+for\\s+(?:each\\s+)?incorrect)/i,
+    /(?:-\\s*(\\d+(?:\\.\\d+)?)\\s*marks?\\s*(?:for|per)\\s*incorrect(?:\\s+answer)?|(\\d+(?:\\.\\d+)?)\\s*marks?\\s*(?:will\\s+be\\s+)?deducted\\s+for\\s+(?:each\\s+)?incorrect)/i,
   );
   const correctValue = correct ? Number(correct[1] ?? correct[2] ?? NaN) : undefined;
   const incorrectValue = incorrect ? Number(incorrect[1] ?? incorrect[2] ?? NaN) : undefined;
@@ -113,7 +113,15 @@ export function detectQuestionRules(documents: ExtractedDocument[]): QuestionRul
 
         const range = line.match(RANGE);
         if (range) {
-          const context = [lines[index - 1] ?? "", line, lines[index + 1] ?? ""].join(" ");
+          const lineMarks = inferMarks(line);
+          const lineHasRule = Boolean(
+            inferType(line) ||
+            lineMarks.correctMarks !== undefined ||
+            lineMarks.incorrectMarks !== undefined
+          );
+          const context = lineHasRule
+            ? line
+            : [lines[index - 1] ?? "", line, lines[index + 1] ?? ""].join(" ");
           const questionType = inferType(context);
           const marks = inferMarks(context);
           if (questionType || marks.correctMarks !== undefined || marks.incorrectMarks !== undefined) {
