@@ -10,6 +10,7 @@ import {
   clearLocalData,
   deletePaperPackage,
   listPaperPackages,
+  moveGuestPackagesToAccount,
   savePaperPackage,
 } from "./lib/db";
 import { discoverAnswerKeys } from "./lib/answer-discovery";
@@ -82,7 +83,12 @@ export default function App() {
 
   useEffect(() => {
     if (!auth) return;
-    return onAuthStateChanged(auth, setUser);
+    return onAuthStateChanged(auth, async (nextUser) => {
+      if (nextUser) {
+        await moveGuestPackagesToAccount(nextUser.uid);
+      }
+      setUser(nextUser);
+    });
   }, []);
 
   useEffect(() => {
@@ -141,7 +147,7 @@ export default function App() {
     setBusy(true);
     setError("");
     setNotice("");
-    const extracted = [];
+    const extracted: import("./types").ExtractedDocument[] = [];
     try {
       for (let index = 0; index < pendingFiles.length; index += 1) {
         const item = pendingFiles[index];
