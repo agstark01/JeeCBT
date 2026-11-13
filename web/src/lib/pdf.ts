@@ -14,14 +14,72 @@ interface PositionedTextItem {
   hasEOL: boolean;
 }
 
-function reconstructTextLines(items: PositionedTextItem[]): string {
+interface TextLine {
+  y: number;
+  parts: Array<{ x: number; text: string }>;
+}
+
+function renderTextLine(line: TextLine): string {
+  return line.parts
+    .sort((a, b) => a.x - b.x)
+    .map((part) => part.text.trim())
+    .filter(Boolean)
+    .join(" ")
+    .replace(/[ \\t]+/g, " ")
+    .trim();
+}
+
+function detectColumnSplit(lines: TextLine[], pageWidth: number): number | undefined {
+  if (!Number.isFinite(pageWidth) || pageWidth <= 0 || lines.length < 6) {
+    return undefined;
+  }
+
+  const starts = lines
+    .map((line) => Math.min(...line.parts.map((part) => part.x)))
+    .sort((left, right) => left - right);
+
+  let bestGap = 0;
+  let bestSplit: number | undefined;
+  for (let index = 1; index < starts.length; index += 1) {
+    const gap = starts[index] - starts[index - 1];
+    const split = (starts[index] + starts[index - 1]) / 2;
+    const relativeSplit = split / pageWidth;
+    const leftLines = index;
+    const rightLines = starts.length - index;
+
+    // Column starts usually sit apart by a sizeable central gutter. Requiring
+    // several lines on both sides avoids splitting one-off indented equations.
+    if (
+      gap > pageWidth * 0.15 &&
+      relativeSplit > 0.22 &&
+      relativeSplit < 0.68 &&
+      leftLines >= 3 &&
+      rightLines >= 3 &&
+      gap > bestGap
+    ) {
+      bestGap = gap;
+      bestSplit = split;
+    }
+  }
+  return bestSplit;
+}
+
+/**
+ * Reconstruct text in reading order. If line origins indicate two columns,
+ * emit the complete left column before the right column instead of merging
+ * same-height lines across the page gutter.
+ */
+export function reconstructTextLines(
+  items: PositionedTextItem[],
+  pageWidth: number,
+): string {
   const sorted = [...items].sort((left, right) => {
     const yDifference = right.transform[5] - left.transform[5];
     if (Math.abs(yDifference) > LINE_TOLERANCE) return yDifference;
     return left.transform[4] - right.transform[4];
   });
 
-  const lines: Array<{ y: number; parts: Array<{ x: number; text: string }> }> = [];
+  const lines: TextLine[] = [];
   for (const item of sorted) {
     if (!item.str.trim()) continue;
     const y = item.transform[5];
@@ -33,19 +91,28 @@ function reconstructTextLines(items: PositionedTextItem[]): string {
     line.parts.push({ x: item.transform[4], text: item.str });
   }
 
-  return lines
-    .sort((a, b) => b.y - a.y)
-    .map((line) =>
-      line.parts
-        .sort((a, b) => a.x - b.x)
-        .map((part) => part.text.trim())
-        .filter(Boolean)
-        .join(" ")
-        .replace(/[ \t]+/g, " ")
-        .trim(),
-    )
+  const columnSplit = detectColumnSplit(lines, pageWidth);
+  let orderedLines = lines.sort((a, b) => b.y - a.y);
+
+  if (columnSplit !== undefined) {
+    const leftLines: TextLine[] = [];
+    const rightLines: TextLine[] = [];
+    for (const line of lines) {
+      const leftParts = line.parts.filter((part) => part.x < columnSplit);
+      const rightParts = line.parts.filter((part) => part.x >= columnSplit);
+      if (leftParts.length > 0) leftLines.push({ y: line.y, parts: leftParts });
+      if (rightParts.length > 0) rightLines.push({ y: line.y, parts: rightParts });
+    }
+    orderedLines = [
+      ...leftLines.sort((a, b) => b.y - a.y),
+      ...rightLines.sort((a, b) => b.y - a.y),
+    ];
+  }
+
+  return orderedLines
+    .map(renderTextLine)
     .filter(Boolean)
-    .join("\n");
+    .join("\\n");
 }
 
 export async function extractPdfLocally(
@@ -92,7 +159,8 @@ export async function extractPdfLocally(
         (item): item is PositionedTextItem =>
           "str" in item && "transform" in item,
       );
-      const text = reconstructTextLines(textItems);
+      const pageWidth = page.view[2] - page.view[0];
+      const text = reconstructTextLines(textItems, pageWidth);
 
       pages.push({
         pageNumber,
