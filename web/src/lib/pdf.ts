@@ -73,11 +73,11 @@ export async function extractPdfLocally(
   const pdf = await loadingTask.promise;
 
   if (pdf.numPages < 1) {
-    await pdf.destroy();
+    await loadingTask.destroy();
     throw new Error(file.name + " contains no pages.");
   }
   if (pdf.numPages > MAX_PAGES) {
-    await pdf.destroy();
+    await loadingTask.destroy();
     throw new Error(file.name + " exceeds the 400-page import limit.");
   }
 
@@ -102,7 +102,7 @@ export async function extractPdfLocally(
       onProgress?.(pageNumber, pdf.numPages);
     }
   } finally {
-    await pdf.destroy();
+    await loadingTask.destroy();
   }
 
   return {
