@@ -227,6 +227,36 @@ export default function QuestionReviewer({
     }
   };
 
+  const verifyBlock = async (sourceDocumentId: string, blockNumber: number) => {
+    const blockQuestions = questions.filter((question) =>
+      question.sourceDocumentId === sourceDocumentId && question.blockNumber === blockNumber,
+    );
+    const ready = blockQuestions.every((question) =>
+      question.questionNumber > 0 &&
+      question.subject !== "UNASSIGNED" &&
+      question.questionType !== "unknown" &&
+      question.statementText.trim().length > 0,
+    );
+    if (!ready) {
+      setMessage("Assign subjects, classify every question, and check that each question has extracted text before bulk verification.");
+      return;
+    }
+    if (!window.confirm(
+      "Mark all " + blockQuestions.length + " questions in this block as verified? Do this only after inspecting the block's source pages and crops.",
+    )) return;
+    const ids = new Set(blockQuestions.map((question) => question.id));
+    const nextQuestions = questions.map((question) =>
+      ids.has(question.id) ? { ...question, status: "verified" as const } : question,
+    );
+    try {
+      await persistQuestions(nextQuestions);
+      if (draft && ids.has(draft.id)) setDraft({ ...draft, status: "verified" });
+      setMessage("Verified " + blockQuestions.length + " question(s) in block " + blockNumber + ". Answer-key mappings still require separate verification.");
+    } catch {
+      // persistQuestions already reports the storage error.
+    }
+  };
+
   const applyRangeSubject = async () => {
     if (!Number.isInteger(rangeStart) || !Number.isInteger(rangeEnd) || rangeStart < 1 || rangeEnd < rangeStart) {
       setMessage("Enter a valid inclusive question-number range.");
@@ -336,6 +366,18 @@ export default function QuestionReviewer({
                   >
                     {subjectOptions.map((subject) => <option key={subject.value} value={subject.value}>{subject.label}</option>)}
                   </select>
+                  <button
+                    className="button button-outline button-small"
+                    onClick={() => void verifyBlock(group.sourceDocumentId, group.blockNumber)}
+                    disabled={saving || !group.questions.every((question) =>
+                      question.questionNumber > 0 &&
+                      question.subject !== "UNASSIGNED" &&
+                      question.questionType !== "unknown" &&
+                      question.statementText.trim().length > 0
+                    )}
+                  >
+                    Verify block
+                  </button>
                 </div>
               );
             })}
