@@ -27,22 +27,22 @@ The first version extracts selectable text. Pages with very little selectable te
 
 ## Google sign-in (optional)
 
-Google sign-in is provided through Firebase Authentication. This is separate from PDF processing and does not grant Drive access.
+Google sign-in uses Google's Identity Services JavaScript library. The browser verifies the returned ID token signature and its issuer, audience, and expiry against Google's public signing keys. The Google subject identifier is used only as a local IndexedDB namespace.
 
-1. Create a Firebase project.
-2. Add a Web app in Firebase project settings.
-3. Under Authentication, enable Google as a sign-in provider.
-4. Add your local development origin, for example http://localhost:5173, to Firebase Authentication's authorized domains.
-5. Copy the Firebase web app configuration values into web/.env.local, using web/.env.example as the template.
+1. Create a project in Google Cloud Console.
+2. Configure the OAuth consent screen.
+3. Create an OAuth 2.0 Client ID of type Web application.
+4. Add your local development origin, for example http://localhost:5173, to Authorized JavaScript origins. Add the deployed static-site origin before publishing.
+5. Copy the client ID into web/.env.local as VITE_GOOGLE_CLIENT_ID.
 6. Restart the Vite development server.
 
-Firebase web configuration values are public identifiers intended for a client application. Do not put Firebase service-account credentials, private keys, or other server secrets in VITE_ variables.
+The Google Identity Services script and Google's public signing keys are loaded from Google when sign-in is used. The app stores only the verified profile fields (sub, name, email, picture) in localStorage. No Google access token is retained.
 
-When a user signs in, the client uses the Firebase UID to namespace records in local IndexedDB. Guest imports are re-assigned to that local namespace on sign-in. This is a local database operation only; it does not upload any paper or attempt data to Firebase.
+This is a local profile selector, not server-side account authentication. The app has no user database or protected server resources. Local browser data is user-controlled and is not protected from someone who already has access to the same browser profile.
 
 ## Google Drive backup
 
-Drive backup is intentionally not part of this first client milestone. Google authentication and Drive authorization are separate operations. A future backup feature must explicitly ask the user to connect Drive and request only the narrow scope required for application data. No PDF or attempt data is sent to Drive in the current version.
+Drive backup is intentionally not part of this first client milestone. Google sign-in does not request Drive permissions. A future backup feature must be a separate opt-in action and request only the narrow scope required for application data. No PDF or attempt data is sent to Drive in the current version.
 
 ## Scripts
 
