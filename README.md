@@ -28,7 +28,7 @@ The web client is a static React + TypeScript + Vite application in the web dire
 - Browser-side parsing detects initial numbered answer-key and subject-wise Ques./Ans. table formats.
 - Dexie stores original PDF Blobs, extracted page text, and candidate mappings in IndexedDB.
 - The paper library displays source documents, detected answer-key candidates, and OCR warnings.
-- Optional Firebase Google sign-in separates local IndexedDB records by account UID. Sign-in does not upload papers or sync data.
+- Optional Google Identity Services sign-in validates a Google ID token in the browser and uses the subject as a local IndexedDB namespace. It does not upload papers or sync data.
 - A test configuration screen is present. Starting an exam remains disabled until question segmentation and verified question storage are implemented.
 
 Run the browser app:
