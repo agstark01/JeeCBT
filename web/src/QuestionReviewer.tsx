@@ -293,17 +293,30 @@ export default function QuestionReviewer({
     }
   };
 
+  const hasUnsavedChanges = () =>
+    Boolean(draft && selectedQuestion && JSON.stringify(draft) !== JSON.stringify(selectedQuestion));
+
   const selectQuestion = (question: QuestionDraft) => {
+    if (hasUnsavedChanges() && !window.confirm("Discard unsaved changes to this question?")) {
+      return;
+    }
     setSelectedQuestionId(question.id);
     setDraft({ ...question });
     setMessage("");
+  };
+
+  const handleBack = () => {
+    if (hasUnsavedChanges() && !window.confirm("Discard unsaved changes before returning to the library?")) {
+      return;
+    }
+    onBack();
   };
 
   const documentForDraft = draft
     ? paperPackage.documents.find((document) => document.id === draft.sourceDocumentId)
     : undefined;
 
-  const dirty = Boolean(draft && selectedQuestion && JSON.stringify(draft) !== JSON.stringify(selectedQuestion));
+  const dirty = hasUnsavedChanges();
   const canVerify = Boolean(
     draft &&
     Number.isInteger(draft.questionNumber) &&
@@ -320,7 +333,7 @@ export default function QuestionReviewer({
           <h1>Review detected questions</h1>
           <p>{paperPackage.title} · {questions.length} detected question(s)</p>
         </div>
-        <button className="button button-outline" onClick={onBack}>Back to library</button>
+        <button className="button button-outline" onClick={handleBack}>Back to library</button>
       </div>
 
       <div className="review-stats">
