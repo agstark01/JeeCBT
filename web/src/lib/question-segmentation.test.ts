@@ -138,4 +138,23 @@ describe("question segmentation", () => {
     expect(first.hasOptions).toBe(true);
   });
 
+
+  it("automatically classifies questions from descriptive section headings", () => {
+    const source = document("sectioned.pdf", "question_paper", [
+      "PHYSICS\\nSECTION B (Multiple correct options)\\nQ.16 Select all valid statements.",
+    ]);
+    const result = segmentQuestions([source]);
+
+    expect(result.questions[0]).toMatchObject({
+      subject: "PHYSICS",
+      sectionLabel: "SECTION B",
+      questionType: "multiple_choice",
+      questionTypeInference: {
+        source: "section_rule",
+        confidence: 0.96,
+      },
+    });
+    expect(result.rules[0].evidence).toBe("Multiple correct options");
+  });
+
 });
