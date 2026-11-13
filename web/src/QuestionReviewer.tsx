@@ -360,7 +360,9 @@ export default function QuestionReviewer({
                   <div><strong>{documentName}</strong><small>Block {group.blockNumber} · Q{group.minQuestion}–Q{group.maxQuestion} · {group.questions.length} question(s)</small></div>
                   <select
                     aria-label={"Assign subject to block " + group.blockNumber}
-                    defaultValue="UNASSIGNED"
+                    value={group.questions.every((question) => question.subject === group.questions[0].subject)
+                      ? group.questions[0].subject
+                      : "UNASSIGNED"}
                     onChange={(event) => {
                       void applyBlockSubject(group.sourceDocumentId, group.blockNumber, event.target.value as QuestionSubject);
                     }}
