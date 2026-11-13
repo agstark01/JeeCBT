@@ -514,6 +514,7 @@ export default function QuestionReviewer({
                 <QuestionCapture
                   document={documentForDraft}
                   regions={draft.sourceRegions ?? []}
+                  optionRegions={draft.optionRegions ?? []}
                   questionNumber={draft.questionNumber}
                 />
               </div>
