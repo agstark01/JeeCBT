@@ -9,7 +9,7 @@ export interface QuestionRuleAnalysis {
   warnings: string[];
 }
 
-const SECTION_HEADING = /^\s*(SECTION\s*[-:]?\s*[A-Z0-9IVX]+)\s*$/i;
+const SECTION_HEADING = /^\s*(SECTION\s*[-:]?\s*[A-Z0-9IVX]+)(?:\s*(?:[-:–—]|\()\s*(.*?)\)?)?\s*$/i;
 const QUESTION_MARKER = /^\s*(?:Q\s*\.?\s*|QUESTION\s+(?:NO\.?\s*)?)(\d{1,3})\b/i;
 const RANGE = /(?:questions?|q\s*\.?\s*)\s*(\d{1,3})\s*(?:to|[-–—])\s*(?:q\s*\.?\s*)?(\d{1,3})/i;
 
@@ -98,6 +98,14 @@ export function detectQuestionRules(documents: ExtractedDocument[]): QuestionRul
         if (section) {
           flushSection();
           activeSection = section[1].toUpperCase().replace(/\s+/g, " ");
+          const headingEvidence = section[2]?.trim();
+          if (headingEvidence) {
+            const questionType = inferType(headingEvidence);
+            const marks = inferMarks(headingEvidence);
+            if (questionType || marks.correctMarks !== undefined || marks.incorrectMarks !== undefined) {
+              rules.push(makeRule(document, page.pageNumber, headingEvidence, questionType, activeSection));
+            }
+          }
           continue;
         }
 
