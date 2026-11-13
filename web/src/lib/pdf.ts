@@ -134,7 +134,7 @@ export function reconstructPageLayout(
     const minX = Math.min(...line.parts.map((part) => part.x));
     const maxX = Math.max(...line.parts.map((part) => part.x + part.width));
     const maxTop = Math.max(...line.parts.map((part) => line.y + part.height));
-    const minBottom = Math.min(...line.parts.map((part) => line.y));
+    const minBottom = line.y;
     return {
       text: renderTextLine(line),
       x: Math.max(0, minX / pageWidth),
