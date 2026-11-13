@@ -217,10 +217,11 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
-    listPaperPackages(ownerId)
-      .then((items) => {
+    Promise.all([listPaperPackages(ownerId), listExamAttempts(ownerId)])
+      .then(([items, attempts]) => {
         if (active) {
           setPackages(items);
+          setLatestAttempt((current) => current ?? attempts[0] ?? null);
           setSelectedPackageId((current) =>
             current && items.some((item) => item.id === current)
               ? current
@@ -421,6 +422,8 @@ export default function App() {
     setPackages([]);
     setSelectedPackageId("");
     setReviewPackageId("");
+    setAnswerReviewPackageId("");
+    setLatestAttempt(null);
     setSelectedSourcePackageIds([]);
     setNotice("Local JeeCBT data for this profile has been deleted.");
   };
@@ -450,6 +453,38 @@ export default function App() {
   const updateSubjectQuestionCount = (subject: TestSubject, count: number) => {
     setSubjectQuestionCounts((current) => ({ ...current, [subject]: count }));
   };
+
+  const startTest = () => {
+    if (configurationErrors.length > 0) {
+      setNotice(configurationErrors.join(" "));
+      return;
+    }
+    const eligible = collectEligibleQuestions(packages, selectedSourcePackageIds);
+    const selection = selectTestQuestions(eligible, activeQuestionCounts, shuffleQuestions);
+    if (Object.keys(selection.shortages).length > 0) {
+      const details = Object.entries(selection.shortages).map(([subject, shortage]) =>
+        subject + ": " + shortage?.available + " available / " + shortage?.requested + " requested",
+      );
+      setNotice("Not enough verified questions to meet the requested quotas. " + details.join("; "));
+      return;
+    }
+    setExamQuestions(selection.questions);
+    setExamTitle(
+      selectedSourcePackages.length === 1
+        ? selectedSourcePackages[0].title + " · Practice test"
+        : "JEE mixed-paper practice test",
+    );
+    setError("");
+    setNotice("");
+    setTab("exam");
+  };
+
+  const completeExam = async (attempt: ExamAttempt) => {
+    await saveExamAttempt(attempt);
+    setLatestAttempt(attempt);
+    setTab("results");
+  };
+
 
   const totalAnswers = packages.reduce(
     (sum, item) =>
