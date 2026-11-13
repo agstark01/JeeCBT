@@ -1,8 +1,8 @@
 import Dexie, { type EntityTable } from "dexie";
-import type { PaperPackage } from "../types";
+import type { ExamAttempt, PaperPackage } from "../types";
 
 class JeeCbtLocalDatabase extends Dexie {
-  paperPackages!: EntityTable<PaperPackage, "id">;
+  paperPackages!: EntityTable<PaperPackage, "id">;\n  testAttempts!: EntityTable<ExamAttempt, "id">;
 
   constructor() {
     super("jeecbt-local");
@@ -31,7 +31,7 @@ export async function deletePaperPackage(id: string, ownerId: string): Promise<v
 }
 
 export async function clearLocalData(ownerId: string): Promise<void> {
-  await localDb.paperPackages.where("ownerId").equals(ownerId).delete();
+  await localDb.transaction("rw", localDb.paperPackages, localDb.testAttempts, async () => {\n    await localDb.paperPackages.where("ownerId").equals(ownerId).delete();\n    await localDb.testAttempts.where("ownerId").equals(ownerId).delete();\n  });
 }
 
 export async function moveGuestPackagesToAccount(ownerId: string): Promise<void> {
@@ -43,4 +43,16 @@ export async function moveGuestPackagesToAccount(ownerId: string): Promise<void>
       await localDb.paperPackages.put(record);
     }
   });
+}
+
+export async function saveExamAttempt(attempt: ExamAttempt): Promise<void> {
+  await localDb.testAttempts.put(attempt);
+}
+
+export async function listExamAttempts(ownerId: string): Promise<ExamAttempt[]> {
+  return localDb.testAttempts
+    .where("ownerId")
+    .equals(ownerId)
+    .reverse()
+    .sortBy("createdAt");
 }
