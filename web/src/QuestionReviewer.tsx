@@ -5,6 +5,7 @@ import type {
   QuestionDraft,
   QuestionSubject,
   QuestionType,
+  QuestionCaptureRegion,
 } from "./types";
 
 interface QuestionReviewerProps {
@@ -19,6 +20,8 @@ const subjectOptions: Array<{ value: QuestionSubject; label: string }> = [
   { value: "CHEMISTRY", label: "Chemistry" },
   { value: "MATHS", label: "Mathematics" },
 ];
+
+const EMPTY_CAPTURE_REGIONS: QuestionCaptureRegion[] = [];
 
 const questionTypeOptions: Array<{ value: QuestionType; label: string }> = [
   { value: "unknown", label: "Not classified" },
@@ -513,8 +516,8 @@ export default function QuestionReviewer({
                 </div>
                 <QuestionCapture
                   document={documentForDraft}
-                  regions={draft.sourceRegions ?? []}
-                  optionRegions={draft.optionRegions ?? []}
+                  regions={draft.sourceRegions ?? EMPTY_CAPTURE_REGIONS}
+                  optionRegions={draft.optionRegions ?? EMPTY_CAPTURE_REGIONS}
                   questionNumber={draft.questionNumber}
                 />
               </div>
