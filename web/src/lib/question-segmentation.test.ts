@@ -59,9 +59,9 @@ describe("question segmentation", () => {
 
   it("keeps repeated question numbers in separate blocks", () => {
     const source = document("advanced.pdf", "question_paper", [
-      "Q.1 First physics question.\nQ.2 Second physics question.\nQ.3 Third physics question.",
-      "Q.1 First chemistry question.\nQ.2 Second chemistry question.",
-      "Q.1 First maths question.",
+      "Q.1 First physics question.\nQ.2 Second physics question.\nQ.3 Third physics question.\nEND OF THE QUESTION PAPER",
+      "Q.1 First chemistry question.\nQ.2 Second chemistry question.\nEND OF THE QUESTION PAPER",
+      "Q.1 First maths question.\nEND OF THE QUESTION PAPER",
     ]);
 
     const result = segmentQuestions([source]);
