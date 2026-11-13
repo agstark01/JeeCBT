@@ -22,17 +22,19 @@ The parser must not rely on the document role as the only signal. Even when the 
 
 IndexedDB stores records namespaced by ownerId:
 - local for guest mode;
-- Firebase UID for a signed-in Google account.
+- Google OIDC subject (sub) for a locally signed-in Google profile.
 
-On first sign-in, guest paper packages are reassigned to that account namespace in the same local IndexedDB database. This is not a cloud upload. When the account signs out, account-scoped records remain on that device and are hidden from the guest namespace.
+On first sign-in, guest paper packages are reassigned to that profile namespace in the same local IndexedDB database. This is not a cloud upload. When the profile signs out, account-scoped records remain on that device and are hidden from the guest namespace.
 
 The UI must make clear that browser storage is device/browser-specific. Google sign-in alone does not synchronize data across browsers or devices. Users can delete their locally stored data from the library screen. Browser site-data clearing may also delete IndexedDB records.
 
-## Authentication
+## Google sign-in
 
-Firebase Authentication with Google is optional. Its scope is account authentication, not document storage. Firebase receives the authentication information necessary to establish identity; PDF bytes and extracted question content remain outside Firebase.
+The optional sign-in uses Google Identity Services. It requests basic OpenID Connect identity only. The browser validates the signed ID token using Google's rotating public signing keys and checks issuer, audience, and expiry before using the Google subject as the local profile namespace.
 
-A Google account UID is used only as a local IndexedDB namespace. Do not imply that sign-in itself provides backup or recovery.
+The verified profile fields are stored in localStorage so the local namespace can be selected again after a page reload. The ID token and access tokens are not retained. This is not server-side authentication: JeeCBT has no user database, no protected server API, and no server-side authorization. Data on a user-controlled browser remains user-controlled.
+
+The Google Identity Services script and public signing keys are loaded from Google when the user signs in. PDF bytes, extracted question text, answer keys, attempts, and results do not go to Google.
 
 ## Drive backup: separate future permission
 
@@ -54,7 +56,7 @@ The current web client provides:
 - answer-key discovery for the initial numbered-answer and subject-table formats;
 - local IndexedDB storage of source PDFs and extraction results;
 - a paper library, status/warning display, and data deletion;
-- optional Firebase Google sign-in with local data namespacing;
+- optional Google Identity Services sign-in with local profile namespacing;
 - an early test configuration screen, with start disabled until question segmentation and review exist.
 
 Not yet implemented:
