@@ -46,6 +46,7 @@ function makeMappings(
 }
 
 function parseSubjectTable(
+  documents: ExtractedDocument[],
   text: string,
   filename: string,
   pageNumber: number,
@@ -207,6 +208,7 @@ export function discoverAnswerKeys(
       if (!page.text.trim()) continue;
 
       const tableCandidates = parseSubjectTable(
+        documents,
         page.text,
         document.filename,
         page.pageNumber,

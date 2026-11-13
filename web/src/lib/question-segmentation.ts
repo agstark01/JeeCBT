@@ -24,9 +24,10 @@ const SUBJECT_HEADING =
   /^\s*(?:SUBJECT\s*[:\-]\s*)?(PHYSICS|CHEMISTRY|MATHS|MATHEMATICS)\s*$/i;
 
 const PAPER_HEADING = /^\s*(PAPER[\s-]*\d+)\s*$/i;
-const SECTION_HEADING = /^\s*(SECTION\s*[-:]?\s*[A-Z0-9IVX]+)\s*$/i;
+const SECTION_HEADING = /^\s*(SECTION\s*[-:]?\s*[A-Z0-9IVX]+)(?:\s*(?:[-:–—]|\()\s*(.*?)\)?)?\s*$/i;
 const END_MARKER = /^\s*END\s+OF\s+THE\s+QUESTION\s+PAPER\s*$/i;
 const OPTION_MARKER = /^\s*(?:\(([A-D])\)|([A-D])[.)]|\(([1-4])\)|([1-4])[.)])\s+/gm;
+const OPTION_LINE_MARKER = /^\s*(?:\([A-D]\)|[A-D][.)]|\([1-4]\)|[1-4][.)])(?:\s|$)/i;
 
 interface QuestionMarkerPosition {
   question: QuestionDraft;
@@ -97,40 +98,58 @@ function buildQuestionRegions(
     const next = markers[index + 1];
     const startPage = marker.pageNumber;
     const endPage = Math.max(startPage, marker.question.sourcePageEnd);
-    const regions: QuestionCaptureRegion[] = [];
+    const questionRegions: QuestionCaptureRegion[] = [];
+    const optionRegions: QuestionCaptureRegion[] = [];
+    let optionsStarted = false;
 
     for (let pageNumber = startPage; pageNumber <= endPage; pageNumber += 1) {
       const page = document.pages.find((item) => item.pageNumber === pageNumber);
       if (!page) continue;
       const bounds = columnBounds(page, marker.line.columnIndex);
-      let top = pageNumber === startPage
+      const pageLines = linesForPage(page);
+      const optionLines = pageLines.filter((line) =>
+        line.columnIndex === marker.line.columnIndex && OPTION_LINE_MARKER.test(line.text),
+      );
+
+      const questionTop = pageNumber === startPage
         ? Math.max(0.015, marker.line.y - 0.012)
         : 0.025;
-      let bottom = 0.975;
-
+      let questionBottom = 0.975;
       if (next?.pageNumber === pageNumber && next.line.columnIndex === marker.line.columnIndex) {
-        bottom = Math.max(top + 0.025, next.line.y - 0.012);
-      } else if (
-        next?.pageNumber === pageNumber &&
-        next.line.columnIndex !== marker.line.columnIndex
-      ) {
-        bottom = 0.975;
+        questionBottom = Math.max(questionTop + 0.025, next.line.y - 0.012);
       }
-
-      top = Math.min(top, 0.94);
-      bottom = Math.min(0.985, Math.max(top + 0.025, bottom));
-      regions.push({
+      questionRegions.push({
         pageNumber,
         x: bounds.x,
-        y: top,
+        y: questionTop,
         width: bounds.width,
-        height: bottom - top,
+        height: Math.min(0.985, Math.max(questionTop + 0.025, questionBottom)) - questionTop,
         columnIndex: marker.line.columnIndex,
         kind: "question",
       });
+
+      if (optionLines.length > 0) optionsStarted = true;
+      if (!optionsStarted) continue;
+      const firstOption = optionLines[0];
+      const optionTop = firstOption ? Math.max(0.015, firstOption.y - 0.012) : 0.025;
+      let optionBottom = 0.975;
+      if (next?.pageNumber === pageNumber && next.line.columnIndex === marker.line.columnIndex) {
+        optionBottom = Math.max(optionTop + 0.025, next.line.y - 0.012);
+      }
+      optionRegions.push({
+        pageNumber,
+        x: bounds.x,
+        y: optionTop,
+        width: bounds.width,
+        height: Math.min(0.985, Math.max(optionTop + 0.025, optionBottom)) - optionTop,
+        columnIndex: marker.line.columnIndex,
+        kind: "options",
+      });
     }
 
-    marker.question.sourceRegions = regions;
+    marker.question.sourceRegions = questionRegions;
+    marker.question.optionRegions = optionRegions;
+    marker.question.hasOptions = optionRegions.length > 0 || marker.question.hasOptions;
   }
 }
 
@@ -213,6 +232,10 @@ export function segmentQuestions(
 
     for (const page of document.pages) {
       if (page.likelyScanned) scannedPages += 1;
+      if (current && page.pageNumber > current.sourcePageStart) {
+        // Keep image-only pages inside the question span so their diagrams are captured.
+        current.sourcePageEnd = page.pageNumber;
+      }
       const pageLines = linesForPage(page);
 
       for (let lineIndex = 0; lineIndex < pageLines.length; lineIndex += 1) {
@@ -298,9 +321,6 @@ export function segmentQuestions(
         }
       }
 
-      if (current && page.pageNumber > current.sourcePageStart && page.lines?.length === 0) {
-        current.sourcePageEnd = page.pageNumber;
-      }
     }
 
     finishCurrent();

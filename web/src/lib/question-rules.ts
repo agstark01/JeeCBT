@@ -9,7 +9,7 @@ export interface QuestionRuleAnalysis {
   warnings: string[];
 }
 
-const SECTION_HEADING = /^\s*(SECTION\s*[-:]?\s*[A-Z0-9IVX]+)\s*$/i;
+const SECTION_HEADING = /^\s*(SECTION\s*[-:]?\s*[A-Z0-9IVX]+)(?:\s*(?:[-:–—]|\()\s*(.*?)\)?)?\s*$/i;
 const QUESTION_MARKER = /^\s*(?:Q\s*\.?\s*|QUESTION\s+(?:NO\.?\s*)?)(\d{1,3})\b/i;
 const RANGE = /(?:questions?|q\s*\.?\s*)\s*(\d{1,3})\s*(?:to|[-–—])\s*(?:q\s*\.?\s*)?(\d{1,3})/i;
 
@@ -27,15 +27,17 @@ function inferType(text: string): Exclude<QuestionType, "unknown"> | undefined {
 }
 
 function inferMarks(text: string): { correctMarks?: number; incorrectMarks?: number } {
-  const correct =
-    text.match(/(?:\+\s*(\d+(?:\.\d+)?)\s*marks?\s*(?:for|per)\s*correct|(?:(\d+(?:\.\d+)?)\s*marks?\s*(?:will\s+be\s+)?awarded\s+for\s+(?:each\s+)?correct)/i);
-  const incorrect =
-    text.match(/(?:-\s*(\d+(?:\.\d+)?)\s*marks?\s*(?:for|per)\s*incorrect|(?:(\d+(?:\.\d+)?)\s*marks?\s*(?:will\s+be\s+)?deducted\s+for\s+(?:each\s+)?incorrect))/i);
-  const correctValue = correct ? Number(correct[1] ?? correct[2]) : undefined;
-  const incorrectValue = incorrect ? Number(incorrect[1] ?? incorrect[2]) : undefined;
+  const correct = text.match(
+    /(?:\+\s*(\d+(?:\.\d+)?)\s*marks?\s*(?:for|per)\s*correct(?:\s+answer)?|(\d+(?:\.\d+)?)\s*marks?\s*(?:will\s+be\s+)?awarded\s+for\s+(?:each\s+)?correct)/i,
+  );
+  const incorrect = text.match(
+    /(?:-\s*(\d+(?:\.\d+)?)\s*marks?\s*(?:for|per)\s*incorrect(?:\s+answer)?|(\d+(?:\.\d+)?)\s*marks?\s*(?:will\s+be\s+)?deducted\s+for\s+(?:each\s+)?incorrect)/i,
+  );
+  const correctValue = correct ? Number(correct[1] ?? correct[2] ?? NaN) : undefined;
+  const incorrectValue = incorrect ? Number(incorrect[1] ?? incorrect[2] ?? NaN) : undefined;
   return {
-    correctMarks: Number.isFinite(correctValue) ? correctValue : undefined,
-    incorrectMarks: Number.isFinite(incorrectValue) ? -Math.abs(incorrectValue) : undefined,
+    correctMarks: correctValue !== undefined && Number.isFinite(correctValue) ? correctValue : undefined,
+    incorrectMarks: incorrectValue !== undefined && Number.isFinite(incorrectValue) ? -Math.abs(incorrectValue) : undefined,
   };
 }
 
@@ -98,12 +100,28 @@ export function detectQuestionRules(documents: ExtractedDocument[]): QuestionRul
         if (section) {
           flushSection();
           activeSection = section[1].toUpperCase().replace(/\s+/g, " ");
+          const headingEvidence = section[2]?.trim();
+          if (headingEvidence) {
+            const questionType = inferType(headingEvidence);
+            const marks = inferMarks(headingEvidence);
+            if (questionType || marks.correctMarks !== undefined || marks.incorrectMarks !== undefined) {
+              rules.push(makeRule(document, page.pageNumber, headingEvidence, questionType, activeSection));
+            }
+          }
           continue;
         }
 
         const range = line.match(RANGE);
         if (range) {
-          const context = [lines[index - 1] ?? "", line, lines[index + 1] ?? ""].join(" ");
+          const lineMarks = inferMarks(line);
+          const lineHasRule = Boolean(
+            inferType(line) ||
+            lineMarks.correctMarks !== undefined ||
+            lineMarks.incorrectMarks !== undefined
+          );
+          const context = lineHasRule
+            ? line
+            : [lines[index - 1] ?? "", line, lines[index + 1] ?? ""].join(" ");
           const questionType = inferType(context);
           const marks = inferMarks(context);
           if (questionType || marks.correctMarks !== undefined || marks.incorrectMarks !== undefined) {
@@ -129,6 +147,16 @@ export function detectQuestionRules(documents: ExtractedDocument[]): QuestionRul
         }
 
         if (activeSection && sectionEvidence.length < 8) {
+          const directType = inferType(line);
+          const directMarks = inferMarks(line);
+          if (
+            directType ||
+            directMarks.correctMarks !== undefined ||
+            directMarks.incorrectMarks !== undefined
+          ) {
+            rules.push(makeRule(document, page.pageNumber, line, directType, activeSection));
+            continue;
+          }
           sectionEvidence.push(line);
         } else if (!activeSection) {
           const type = inferType(line);
