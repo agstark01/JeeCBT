@@ -1,5 +1,3 @@
-import * as pdfjs from "pdfjs-dist";
-import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import type { DocumentRole, ExtractedDocument, ExtractedPage } from "../types";
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -63,6 +61,12 @@ export async function extractPdfLocally(
   if (file.size > MAX_FILE_BYTES) {
     throw new Error(file.name + " exceeds the 25 MB per-file limit.");
   }
+
+  const [pdfjs, pdfWorker] = await Promise.all([
+    import("pdfjs-dist"),
+    import("pdfjs-dist/build/pdf.worker.min.mjs?url"),
+  ]);
+  pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker.default;
 
   const data = new Uint8Array(await file.arrayBuffer());
   if (data.length < 5 || String.fromCharCode(...data.slice(0, 5)) !== "%PDF-") {
