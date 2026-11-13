@@ -19,8 +19,8 @@ def make_pdf(*pages: str) -> bytes:
 
 def test_detects_answer_key_embedded_in_question_pdf() -> None:
     pdf = make_pdf(
-        "Q.1 Choose the correct option.\\n(A) one (B) two (C) three (D) four",
-        "ANSWER KEYS\\n1. (2) 2. (4) 3. (1) 4. (-2.7) 5. (10.6)",
+        "Q.1 Choose the correct option.\n(A) one (B) two (C) three (D) four",
+        "ANSWER KEYS\n1. (2) 2. (4) 3. (1) 4. (-2.7) 5. (10.6)",
     )
     document = inspect_pdf_bytes(pdf, "main-paper.pdf", "question_paper")
 
@@ -36,7 +36,7 @@ def test_detects_answer_key_embedded_in_question_pdf() -> None:
 
 def test_does_not_claim_key_absent_when_question_pdf_has_no_key() -> None:
     pdf = make_pdf(
-        "JEE Advanced Paper 1\\nQ.1 Select all correct options.\\n(A) option A (B) option B"
+        "JEE Advanced Paper 1\nQ.1 Select all correct options.\n(A) option A (B) option B"
     )
     document = inspect_pdf_bytes(pdf, "advanced-paper.pdf", "question_paper")
 
@@ -60,12 +60,12 @@ def test_scans_separate_answer_key_document_even_without_heading() -> None:
 
 def test_question_numbering_can_repeat_across_documents() -> None:
     first = inspect_pdf_bytes(
-        make_pdf("ANSWER KEY\\n1. (A) 2. (B) 3. (C)"),
+        make_pdf("ANSWER KEY\n1. (A) 2. (B) 3. (C)"),
         "physics-key.pdf",
         "answer_key",
     )
     second = inspect_pdf_bytes(
-        make_pdf("ANSWER KEY\\n1. (D) 2. (C) 3. (B)"),
+        make_pdf("ANSWER KEY\n1. (D) 2. (C) 3. (B)"),
         "chemistry-key.pdf",
         "answer_key",
     )
