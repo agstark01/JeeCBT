@@ -127,8 +127,12 @@ export default function App() {
       const next = [...current];
       for (const file of pdfs) {
         if (!next.some((item) => item.file.name === file.name && item.file.size === file.size)) {
+          if (next.length >= 10) break;
           next.push({ file, role: guessRole(file.name) });
         }
+      }
+      if (next.length >= 10 && pdfs.length > 10) {
+        setNotice("Only the first 10 PDF files can be imported in one package.");
       }
       return next;
     });
