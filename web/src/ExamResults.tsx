@@ -21,6 +21,26 @@ export default function ExamResults({
     (sum, answer) => sum + Math.max(0, answer.pointsAwarded),
     0,
   );
+  const subjectBreakdown = ["PHYSICS", "CHEMISTRY", "MATHS"].map((subject) => {
+    const answers = attempt.answers.filter((answer) =>
+      subject === "MATHS"
+        ? answer.subject === "MATHS" || answer.subject === "MATHEMATICS"
+        : answer.subject === subject,
+    );
+    const score = answers.reduce((sum, answer) => sum + answer.pointsAwarded, 0);
+    const maxScore = answers.reduce((sum, answer) => sum + answer.pointsPossible, 0);
+    return {
+      subject: subject === "MATHS" ? "Mathematics" : subject.charAt(0) + subject.slice(1).toLowerCase(),
+      questions: answers.length,
+      correct: answers.filter((answer) => answer.status === "correct").length,
+      incorrect: answers.filter((answer) => answer.status === "incorrect").length,
+      unanswered: answers.filter((answer) => answer.status === "unanswered").length,
+      score,
+      maxScore,
+      percentage: maxScore > 0 ? (score / maxScore) * 100 : 0,
+    };
+  });
+
   const negativeScore = attempt.answers.reduce(
     (sum, answer) => sum + Math.min(0, answer.pointsAwarded),
     0,
@@ -59,6 +79,23 @@ export default function ExamResults({
         <div><strong>{attempt.incorrectCount}</strong><span>Incorrect</span></div>
         <div><strong>{attempt.unansweredCount}</strong><span>Unanswered</span></div>
         <div><strong>{attempt.answeredCount}/{attempt.questionCount}</strong><span>Attempted</span></div>
+      </div>
+
+      <div className="panel exam-subject-breakdown">
+        <h2>Subject-wise score</h2>
+        <div className="exam-subject-table-wrap">
+          <table className="exam-subject-table">
+            <thead><tr><th>Subject</th><th>Questions</th><th>Correct</th><th>Incorrect</th><th>Unanswered</th><th>Score</th><th>Percentage</th></tr></thead>
+            <tbody>
+              {subjectBreakdown.map((item) => (
+                <tr key={item.subject}>
+                  <td>{item.subject}</td><td>{item.questions}</td><td>{item.correct}</td><td>{item.incorrect}</td><td>{item.unanswered}</td>
+                  <td>{item.score.toFixed(2)} / {item.maxScore.toFixed(2)}</td><td>{item.percentage.toFixed(2)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="panel exam-answer-review">
