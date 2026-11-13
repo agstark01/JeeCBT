@@ -92,3 +92,39 @@ def test_scanned_page_requests_ocr_even_when_other_pages_have_text() -> None:
 
     assert response.status_code == 200
     assert response.json()["answer_key_status"] == "needs_ocr"
+
+
+def test_parses_subject_wise_question_answer_tables() -> None:
+    table = """PAPER-1 PHYSICS
+Ques. 1 2 3 4
+Ans. A BC 25.6 -0.4
+Ques. 5 6 7 8
+Ans. BCD 0.62 6.4 1
+PAPER-1 CHEMISTRY
+Ques. 1 2 3 4
+Ans. B B A C
+Ques. 5 6 7 8
+Ans. D C ABC 0.11
+PAPER-1 MATHS
+Ques. 1 2 3 4
+Ans. D C A A
+Ques. 5 6 7 8
+Ans. B C AC 108
+"""
+    document = inspect_pdf_bytes(make_pdf(table), "answer-table.pdf", "unknown")
+
+    candidates = discover_answer_key_candidates([document])
+
+    assert [candidate["subject"] for candidate in candidates] == [
+        "PHYSICS", "CHEMISTRY", "MATHS"
+    ]
+    assert all(len(candidate["mappings"]) == 8 for candidate in candidates)
+    assert candidates[0]["mappings"][1]["answer_raw"] == "BC"
+    assert candidates[0]["mappings"][2]["answer_raw"] == "25.6"
+    assert candidates[0]["mappings"][3]["answer_raw"] == "-0.4"
+    assert candidates[1]["mappings"][6]["answer_raw"] == "ABC"
+    assert candidates[0]["mappings"][0]["question_number"] == 1
+    assert candidates[1]["mappings"][0]["question_number"] == 1
+    assert candidates[0]["mappings"][0]["subject"] == "PHYSICS"
+    assert candidates[1]["mappings"][0]["subject"] == "CHEMISTRY"
+    assert candidates[0]["extraction_method"] == "subject_table_ques_ans_row_pairs"
