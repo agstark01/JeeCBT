@@ -52,6 +52,40 @@ export interface AnswerKeyCandidate {
   reviewRequired: boolean;
 }
 
+
+export type QuestionSubject = Subject | "UNASSIGNED";
+
+export type QuestionType =
+  | "unknown"
+  | "single_choice"
+  | "multiple_choice"
+  | "numerical";
+
+export type QuestionReviewStatus = "needs_review" | "verified" | "rejected";
+
+export interface QuestionAnswerReference {
+  candidateId: string;
+  mappingIndex: number;
+}
+
+export interface QuestionDraft {
+  id: string;
+  questionNumber: number;
+  blockNumber: number;
+  subject: QuestionSubject;
+  sectionLabel?: string;
+  paperLabel?: string;
+  questionType: QuestionType;
+  statementText: string;
+  sourceDocumentId: string;
+  sourceFilename: string;
+  sourcePageStart: number;
+  sourcePageEnd: number;
+  status: QuestionReviewStatus;
+  answerKeyReference?: QuestionAnswerReference;
+  detectionMethod: "question_number_marker";
+}
+
 export interface PaperPackage {
   id: string;
   ownerId: string;
@@ -62,4 +96,7 @@ export interface PaperPackage {
   answerKeyStatus: AnswerKeyStatus;
   candidates: AnswerKeyCandidate[];
   warnings: string[];
+  questions?: QuestionDraft[];
+  questionSegmentationWarnings?: string[];
+  questionSegmentationAt?: number;
 }
