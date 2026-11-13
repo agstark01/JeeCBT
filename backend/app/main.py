@@ -69,16 +69,18 @@ async def inspect_documents(
 
     for upload, role in zip(documents, roles):
         filename = upload.filename or "unnamed.pdf"
-        payload = await upload.read(MAX_FILE_BYTES + 1)
-        if len(payload) > MAX_FILE_BYTES:
-            raise HTTPException(
-                status_code=413,
-                detail=f"{filename}: exceeds the {MAX_FILE_BYTES // (1024 * 1024)} MB file limit",
-            )
         try:
+            payload = await upload.read(MAX_FILE_BYTES + 1)
+            if len(payload) > MAX_FILE_BYTES:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"{filename}: exceeds the {MAX_FILE_BYTES // (1024 * 1024)} MB file limit",
+                )
             result = await run_in_threadpool(inspect_pdf_bytes, payload, filename, role)
         except PDFIngestionError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        finally:
+            await upload.close()
 
         if any(page["likely_scanned"] for page in result["pages"]):
             warnings.append(
@@ -86,10 +88,9 @@ async def inspect_documents(
                 "they may require OCR or manual inspection."
             )
         inspected.append(result)
-        await upload.close()
 
     candidates = discover_answer_key_candidates(inspected)
-    all_pages_likely_scanned = all(
+    any_pages_need_ocr = any(
         page["likely_scanned"]
         for document in inspected
         for page in document["pages"]
@@ -97,17 +98,17 @@ async def inspect_documents(
 
     if candidates:
         status = "detected_needs_review"
-    elif all_pages_likely_scanned:
+    elif any_pages_need_ocr:
         status = "needs_ocr"
         warnings.append(
-            "No answer-key text was detected and all pages appear image-based. "
-            "Run OCR or supply a readable answer key before publishing."
+            "No answer-key candidate was detected and at least one page appears image-based. "
+            "Inspect those pages with OCR or manually before concluding that a key is absent."
         )
     else:
         status = "not_detected"
         warnings.append(
             "No answer-key candidate was detected. This does not prove that a key is absent; "
-            "it may use an unsupported layout or require OCR."
+            "it may use an unsupported layout or require manual inspection."
         )
 
     return IngestionReport(
