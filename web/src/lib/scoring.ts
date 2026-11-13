@@ -29,7 +29,7 @@ function parseChoiceSet(raw: string, allowedLabels: string[]): string[] | undefi
   if (allowedLabels.every((label) => label.length === 1) && /^[A-Z0-9]+$/.test(value)) {
     tokens = [...value];
   } else {
-    tokens = value.split(/[,;|/+\s]+/).map((token) => token.replace(/^[([{]+|[)\]}]+$/g, ""));
+    tokens = value.split(/[,;|\/+\s]+/).map((token) => token.replace(/^[([{]+|[)\]}]+$/g, ""));
   }
   const normalized = tokens.filter(Boolean);
   if (normalized.length === 0 || normalized.some((token) => !allowed.has(token))) return undefined;
