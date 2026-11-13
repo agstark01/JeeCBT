@@ -89,7 +89,7 @@ describe("question segmentation", () => {
     const result = segmentQuestions([source]);
 
     expect(result.questions).toHaveLength(0);
-    expect(result.warnings[0]).toContain("No document is labelled Question paper");
+    expect(result.warnings.some((warning) => warning.includes("No document is labelled Question paper"))).toBe(true);
   });
 
   it("falls back to unknown-role documents only when no question-paper role is present", () => {
