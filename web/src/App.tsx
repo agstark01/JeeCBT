@@ -355,6 +355,7 @@ export default function App() {
       const updated: PaperPackage = {
         ...source,
         questions: result.questions,
+        questionRules: result.rules,
         questionSegmentationWarnings: result.warnings,
         questionSegmentationAt: Date.now(),
       };
