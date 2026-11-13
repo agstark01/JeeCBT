@@ -1,4 +1,9 @@
-import type { DocumentRole, ExtractedDocument, ExtractedPage } from "../types";
+import type {
+  DocumentRole,
+  ExtractedDocument,
+  ExtractedPage,
+  ExtractedTextLine,
+} from "../types";
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const MAX_PAGES = 400;
@@ -16,7 +21,13 @@ interface PositionedTextItem {
 
 interface TextLine {
   y: number;
-  parts: Array<{ x: number; text: string }>;
+  parts: Array<{ x: number; text: string; width: number; height: number }>;
+}
+
+export interface PageLayout {
+  text: string;
+  lines: ExtractedTextLine[];
+  columnSplit?: number;
 }
 
 function renderTextLine(line: TextLine): string {
@@ -34,8 +45,6 @@ function detectColumnSplit(lines: TextLine[], pageWidth: number): number | undef
     return undefined;
   }
 
-  // A y-row may already contain text from both columns. Use every item origin
-  // to find the gutter, then require several distinct rows on both sides.
   const starts = lines
     .flatMap((line) => line.parts.map((part) => part.x))
     .sort((left, right) => left - right);
@@ -66,14 +75,21 @@ function detectColumnSplit(lines: TextLine[], pageWidth: number): number | undef
 }
 
 /**
- * Reconstruct text in reading order. If line origins indicate two columns,
- * emit the complete left column before the right column instead of merging
- * same-height lines across the page gutter.
+ * Reconstruct both reading order and normalized line geometry. The geometry is
+ * later used to crop each question from a browser-rendered copy of its source
+ * PDF page, preserving diagrams, equations, tables, and option typography.
  */
-export function reconstructTextLines(
+export function reconstructPageLayout(
   items: PositionedTextItem[],
-  pageWidth: number,
-): string {
+  pageView: [number, number, number, number],
+): PageLayout {
+  const [xMin, yMin, xMax, yMax] = pageView;
+  const pageWidth = xMax - xMin;
+  const pageHeight = yMax - yMin;
+  if (pageWidth <= 0 || pageHeight <= 0) {
+    return { text: "", lines: [] };
+  }
+
   const sorted = [...items].sort((left, right) => {
     const yDifference = right.transform[5] - left.transform[5];
     if (Math.abs(yDifference) > LINE_TOLERANCE) return yDifference;
@@ -89,18 +105,22 @@ export function reconstructTextLines(
       line = { y, parts: [] };
       lines.push(line);
     }
-    line.parts.push({ x: item.transform[4], text: item.str });
+    line.parts.push({
+      x: item.transform[4] - xMin,
+      text: item.str,
+      width: item.width,
+      height: item.height,
+    });
   }
 
-  const columnSplit = detectColumnSplit(lines, pageWidth);
+  const columnSplitAbsolute = detectColumnSplit(lines, pageWidth);
   let orderedLines = lines.sort((a, b) => b.y - a.y);
-
-  if (columnSplit !== undefined) {
+  if (columnSplitAbsolute !== undefined) {
     const leftLines: TextLine[] = [];
     const rightLines: TextLine[] = [];
     for (const line of lines) {
-      const leftParts = line.parts.filter((part) => part.x < columnSplit);
-      const rightParts = line.parts.filter((part) => part.x >= columnSplit);
+      const leftParts = line.parts.filter((part) => part.x < columnSplitAbsolute);
+      const rightParts = line.parts.filter((part) => part.x >= columnSplitAbsolute);
       if (leftParts.length > 0) leftLines.push({ y: line.y, parts: leftParts });
       if (rightParts.length > 0) rightLines.push({ y: line.y, parts: rightParts });
     }
@@ -110,10 +130,38 @@ export function reconstructTextLines(
     ];
   }
 
-  return orderedLines
-    .map(renderTextLine)
-    .filter(Boolean)
-    .join("\n");
+  const positioned: ExtractedTextLine[] = orderedLines.map((line) => {
+    const minX = Math.min(...line.parts.map((part) => part.x));
+    const maxX = Math.max(...line.parts.map((part) => part.x + part.width));
+    const maxTop = Math.max(...line.parts.map((part) => line.y + part.height));
+    const minBottom = Math.min(...line.parts.map((part) => line.y));
+    return {
+      text: renderTextLine(line),
+      x: Math.max(0, minX / pageWidth),
+      y: Math.max(0, (yMax - maxTop) / pageHeight),
+      width: Math.min(1, Math.max(0, (maxX - minX) / pageWidth)),
+      height: Math.min(1, Math.max(0, (maxTop - minBottom) / pageHeight)),
+      columnIndex:
+        columnSplitAbsolute !== undefined && minX >= columnSplitAbsolute ? 1 : 0,
+    };
+  }).filter((line) => line.text.length > 0);
+
+  return {
+    text: positioned.map((line) => line.text).join("\n"),
+    lines: positioned,
+    columnSplit:
+      columnSplitAbsolute === undefined
+        ? undefined
+        : columnSplitAbsolute / pageWidth,
+  };
+}
+
+/** Backwards-compatible text-only helper retained for parser tests. */
+export function reconstructTextLines(
+  items: PositionedTextItem[],
+  pageWidth: number,
+): string {
+  return reconstructPageLayout(items, [0, 0, pageWidth, 792]).text;
 }
 
 export async function extractPdfLocally(
@@ -160,14 +208,20 @@ export async function extractPdfLocally(
         (item): item is PositionedTextItem =>
           "str" in item && "transform" in item,
       );
-      const pageWidth = page.view[2] - page.view[0];
-      const text = reconstructTextLines(textItems, pageWidth);
+      const pageView = page.view as [number, number, number, number];
+      const layout = reconstructPageLayout(textItems, pageView);
+      const width = pageView[2] - pageView[0];
+      const height = pageView[3] - pageView[1];
 
       pages.push({
         pageNumber,
-        text,
-        textCharCount: text.length,
-        likelyScanned: text.length < 40,
+        text: layout.text,
+        textCharCount: layout.text.length,
+        likelyScanned: layout.text.length < 40,
+        width,
+        height,
+        columnSplit: layout.columnSplit,
+        lines: layout.lines,
       });
       page.cleanup();
       onProgress?.(pageNumber, pdf.numPages);
