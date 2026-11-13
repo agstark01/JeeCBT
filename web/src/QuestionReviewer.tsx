@@ -196,7 +196,7 @@ export default function QuestionReviewer({
       const next = {
         ...current,
         [key]: value,
-        status: current.status === "needs_review" ? "needs_review" as const : "needs_review" as const,
+        status: "needs_review" as const,
       };
       if (key === "questionNumber" || key === "subject") {
         next.answerKeyReference = undefined;
@@ -248,7 +248,7 @@ export default function QuestionReviewer({
   ) => {
     const nextQuestions = questions.map((question) =>
       question.sourceDocumentId === sourceDocumentId && question.blockNumber === blockNumber
-        ? { ...question, subject, status: "needs_review" as const }
+        ? { ...question, subject, answerKeyReference: undefined, status: "needs_review" as const }
         : question,
     );
     try {
@@ -280,7 +280,7 @@ export default function QuestionReviewer({
     const matchedIds = new Set(matching.map((question) => question.id));
     const nextQuestions = questions.map((question) =>
       matchedIds.has(question.id)
-        ? { ...question, subject: rangeSubject, status: "needs_review" as const }
+        ? { ...question, subject: rangeSubject, answerKeyReference: undefined, status: "needs_review" as const }
         : question,
     );
     try {
