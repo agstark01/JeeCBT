@@ -72,7 +72,6 @@ export function segmentQuestions(
     let activePaperLabel: string | undefined;
     let blockNumber = 1;
     let previousQuestionNumber: number | undefined;
-    let sawEndMarker = false;
     let scannedPages = 0;
 
     const finishCurrent = () => {
@@ -99,9 +98,10 @@ export function segmentQuestions(
         if (!line || isRepeatedPageFurniture(line)) continue;
 
         if (END_MARKER.test(line)) {
+          // A combined JEE Advanced PDF may contain multiple subject papers,
+          // each with its own end marker. End the current question, not the file.
           finishCurrent();
-          sawEndMarker = true;
-          break;
+          continue;
         }
 
         const subjectMatch = line.match(SUBJECT_HEADING);
@@ -172,7 +172,6 @@ export function segmentQuestions(
         }
       }
 
-      if (sawEndMarker) break;
     }
 
     finishCurrent();
