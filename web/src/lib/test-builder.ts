@@ -1,3 +1,21 @@
+import { isMappingScoringEligible } from "./answer-review";
+import type { PaperPackage, QuestionDraft, ExtractedDocument } from "../types";
+
+export interface EligibleTestQuestion {
+  packageId: string;
+  packageTitle: string;
+  question: QuestionDraft;
+  correctAnswerRaw: string;
+  answerSourceFilename: string;
+  answerSourcePage: number;
+  sourceDocument: ExtractedDocument;
+}
+
+export interface TestSelectionResult {
+  questions: EligibleTestQuestion[];
+  shortages: Partial<Record<TestSubject, { requested: number; available: number }>>;
+}
+
 export const TEST_SUBJECTS = ["PHYSICS", "CHEMISTRY", "MATHS"] as const;
 
 export type TestSubject = (typeof TEST_SUBJECTS)[number];
@@ -71,4 +89,95 @@ export function sampleWithoutReplacement<T>(
   }
 
   return pool.slice(0, count);
+}
+
+
+/**
+ * Return only complete question records whose matching answer mapping and
+ * question text have both been verified inside the same paper package.
+ * Multiple verified keys pointing at one question are treated as ambiguous.
+ */
+export function collectEligibleQuestions(
+  packages: PaperPackage[],
+  sourcePackageIds: string[],
+): EligibleTestQuestion[] {
+  const selectedIds = new Set(sourcePackageIds);
+  const eligible: EligibleTestQuestion[] = [];
+
+  for (const paperPackage of packages) {
+    if (!selectedIds.has(paperPackage.id)) continue;
+    for (const question of paperPackage.questions ?? []) {
+      if (
+        question.status !== "verified" ||
+        question.subject === "UNASSIGNED" ||
+        question.questionType === "unknown" ||
+        !question.statementText.trim()
+      ) continue;
+
+      const sourceDocument = paperPackage.documents.find(
+        (document) => document.id === question.sourceDocumentId,
+      );
+      if (!sourceDocument) continue;
+
+      const matches = paperPackage.candidates.flatMap((candidate) =>
+        candidate.mappings
+          .filter((mapping) =>
+            isMappingScoringEligible(paperPackage, candidate, mapping) &&
+            mapping.linkedQuestionId === question.id ||
+            (
+              isMappingScoringEligible(paperPackage, candidate, mapping) &&
+              !mapping.linkedQuestionId &&
+              candidate.targetDocumentId === question.sourceDocumentId &&
+              mapping.questionNumber === question.questionNumber &&
+              (!mapping.subject || mapping.subject === question.subject ||
+                (mapping.subject === "MATHEMATICS" && question.subject === "MATHS"))
+            ),
+          )
+          .map((mapping) => ({ candidate, mapping })),
+      );
+
+      if (matches.length !== 1) continue;
+      const { candidate, mapping } = matches[0];
+      eligible.push({
+        packageId: paperPackage.id,
+        packageTitle: paperPackage.title,
+        question,
+        correctAnswerRaw: mapping.answerRaw,
+        answerSourceFilename: mapping.sourceFilename || candidate.sourceFilename,
+        answerSourcePage: mapping.sourcePage || candidate.sourcePage,
+        sourceDocument,
+      });
+    }
+  }
+  return eligible;
+}
+
+export function selectTestQuestions(
+  eligible: EligibleTestQuestion[],
+  questionCounts: SubjectQuestionCounts,
+  shuffleQuestions: boolean,
+  random: () => number = Math.random,
+): TestSelectionResult {
+  const selected: EligibleTestQuestion[] = [];
+  const shortages: Partial<Record<TestSubject, { requested: number; available: number }>> = {};
+
+  for (const subject of TEST_SUBJECTS) {
+    const requested = questionCounts[subject];
+    if (requested === 0) continue;
+    const pool = eligible.filter((item) => item.question.subject === subject);
+    if (pool.length < requested) {
+      shortages[subject] = { requested, available: pool.length };
+      continue;
+    }
+    const chosen = shuffleQuestions
+      ? sampleWithoutReplacement(pool, requested, random)
+      : pool.slice(0, requested);
+    selected.push(...chosen);
+  }
+
+  if (Object.keys(shortages).length > 0) return { questions: [], shortages };
+  if (shuffleQuestions) {
+    return { questions: sampleWithoutReplacement(selected, selected.length, random), shortages };
+  }
+  return { questions: selected, shortages };
 }
