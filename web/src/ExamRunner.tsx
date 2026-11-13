@@ -139,6 +139,7 @@ export default function ExamRunner({
           <div className="eyebrow">TIMED PRACTICE TEST</div>
           <h1>{title}</h1>
           <p>{questions.length} questions · Local browser timer · No server submission</p>
+          <button className="text-button" onClick={onCancel}>Exit to test builder</button>
         </div>
         <div className={secondsRemaining <= 300 ? "exam-clock urgent" : "exam-clock"}>
           <span>TIME LEFT</span>
