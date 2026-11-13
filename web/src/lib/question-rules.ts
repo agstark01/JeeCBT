@@ -147,6 +147,16 @@ export function detectQuestionRules(documents: ExtractedDocument[]): QuestionRul
         }
 
         if (activeSection && sectionEvidence.length < 8) {
+          const directType = inferType(line);
+          const directMarks = inferMarks(line);
+          if (
+            directType ||
+            directMarks.correctMarks !== undefined ||
+            directMarks.incorrectMarks !== undefined
+          ) {
+            rules.push(makeRule(document, page.pageNumber, line, directType, activeSection));
+            continue;
+          }
           sectionEvidence.push(line);
         } else if (!activeSection) {
           const type = inferType(line);
