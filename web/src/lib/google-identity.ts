@@ -17,6 +17,7 @@ interface GoogleIdentityApi {
     callback: (response: GoogleCredentialResponse) => void;
     auto_select?: boolean;
     use_fedcm_for_prompt?: boolean;
+    nonce?: string;
   }): void;
   renderButton(
     element: HTMLElement,
@@ -76,12 +77,16 @@ function loadGoogleIdentityServices(): Promise<void> {
 export async function verifyGoogleCredential(
   credential: string,
   clientId: string,
+  expectedNonce: string,
 ): Promise<GoogleLocalProfile> {
   const { payload } = await jwtVerify(credential, GOOGLE_JWKS, {
     issuer: ["https://accounts.google.com", "accounts.google.com"],
     audience: clientId,
   });
 
+  if (payload.nonce !== expectedNonce) {
+    throw new Error("Google sign-in nonce validation failed. Please try again.");
+  }
   if (typeof payload.sub !== "string" || payload.sub.length === 0) {
     throw new Error("Google did not return a valid account identifier.");
   }
@@ -105,12 +110,14 @@ export async function mountGoogleSignInButton(
   const identity = window.google?.accounts?.id;
   if (!identity) throw new Error("Google Identity Services is unavailable.");
 
+  const nonce = crypto.randomUUID();
   identity.initialize({
     client_id: clientId,
+    nonce,
     auto_select: false,
     use_fedcm_for_prompt: true,
     callback: (response) => {
-      void verifyGoogleCredential(response.credential, clientId)
+      void verifyGoogleCredential(response.credential, clientId, nonce)
         .then(onProfile)
         .catch((error: unknown) => {
           onError(error instanceof Error ? error : new Error("Google sign-in failed."));
