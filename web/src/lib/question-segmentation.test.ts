@@ -157,4 +157,27 @@ describe("question segmentation", () => {
     expect(result.rules[0].evidence).toBe("Multiple correct options");
   });
 
+
+  it("keeps image-only continuation pages inside the visual question crop", () => {
+    const source = document("diagram.pdf", "question_paper", [
+      "Q1. Refer to the figure.",
+      "",
+      "Q2. Next question.",
+    ]);
+    source.pages[0].lines = [
+      { text: "Q1. Refer to the figure.", x: 0.05, y: 0.10, width: 0.5, height: 0.02, columnIndex: 0 },
+    ];
+    source.pages[1].lines = [];
+    source.pages[1].likelyScanned = true;
+    source.pages[2].lines = [
+      { text: "Q2. Next question.", x: 0.05, y: 0.65, width: 0.4, height: 0.02, columnIndex: 0 },
+    ];
+
+    const result = segmentQuestions([source]);
+    const first = result.questions[0];
+
+    expect(first.sourcePageEnd).toBe(3);
+    expect(first.sourceRegions?.map((region) => region.pageNumber)).toEqual([1, 2, 3]);
+  });
+
 });
