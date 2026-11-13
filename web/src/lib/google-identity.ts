@@ -11,13 +11,6 @@ interface GoogleCredentialResponse {
   credential: string;
 }
 
-interface GooglePromptNotification {
-  isNotDisplayed(): boolean;
-  getNotDisplayedReason(): string;
-  isSkippedMoment(): boolean;
-  getSkippedReason(): string;
-}
-
 interface GoogleIdentityApi {
   initialize(config: {
     client_id: string;
