@@ -62,7 +62,7 @@ function parseSubjectTable(
   let pendingQuestions: number[] | undefined;
 
   const finish = () => {
-    if (current && current.mappings.length > 0) {
+    if (current && (current.mappings.length > 0 || current.unmatched.length > 0)) {
       candidates.push({
         id: newId(),
         sourceFilename: filename,
