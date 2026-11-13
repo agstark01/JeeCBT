@@ -105,6 +105,22 @@ export default function AnswerKeyReviewer({
     [draftPackage.documents],
   );
 
+  const mappingMatchCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const candidate of draftPackage.candidates) {
+      for (const mapping of candidate.mappings) {
+        if (mapping.reviewStatus === "rejected") continue;
+        const match = evaluateAnswerMapping(draftPackage, candidate, mapping);
+        const questionId = match.selectedQuestion?.id;
+        if (match.status === "matched" && questionId) {
+          counts.set(questionId, (counts.get(questionId) ?? 0) + 1);
+        }
+      }
+    }
+    return counts;
+  }, [draftPackage]);
+
+
   const totals = useMemo(() => {
     const mappings = draftPackage.candidates.flatMap((candidate) =>
       candidate.mappings.map((mapping) => ({ candidate, mapping })),
@@ -202,6 +218,41 @@ export default function AnswerKeyReviewer({
     }
   };
 
+  const verifyAllUnambiguous = (candidate: AnswerKeyCandidate) => {
+    const nextCandidates = draftPackage.candidates.map((currentCandidate) => {
+      if (currentCandidate.id !== candidate.id) return currentCandidate;
+      return {
+        ...currentCandidate,
+        mappings: currentCandidate.mappings.map((mapping) => {
+          if (mapping.reviewStatus === "verified" || mapping.reviewStatus === "rejected") return mapping;
+          const match = evaluateAnswerMapping(draftPackage, currentCandidate, mapping);
+          const question = match.selectedQuestion;
+          if (
+            !question ||
+            match.status !== "matched" ||
+            mappingMatchCounts.get(question.id) !== 1 ||
+            !isSupportedAnswerFormat(question, mapping.answerRaw) ||
+            !canVerifyAnswerMapping(draftPackage, currentCandidate, mapping)
+          ) return mapping;
+          try {
+            return setMappingReviewStatus(draftPackage, currentCandidate, mapping, "verified");
+          } catch {
+            return mapping;
+          }
+        }),
+      };
+    });
+    const updated = { ...draftPackage, candidates: nextCandidates };
+    const before = candidate.mappings.filter((mapping) => mapping.reviewStatus !== "verified" && mapping.reviewStatus !== "rejected").length;
+    const after = nextCandidates.find((item) => item.id === candidate.id)?.mappings.filter((mapping) => mapping.reviewStatus === "verified").length ?? 0;
+    const previous = candidate.mappings.filter((mapping) => mapping.reviewStatus === "verified").length;
+    const verifiedNow = after - previous;
+    setDraftPackage(updated);
+    setDirty(true);
+    setError("");
+    setMessage("Verified " + verifiedNow + " mapping(s) in this key section. " + Math.max(0, before - verifiedNow) + " were left for manual resolution or are unsupported.");
+  };
+
   const visibleCandidates = draftPackage.candidates.filter((candidate) =>
     candidateFilter === "all" || candidate.id === candidateFilter,
   );
@@ -258,7 +309,12 @@ export default function AnswerKeyReviewer({
               <h2>{candidate.paperLabel ? candidate.paperLabel + " · " : ""}{candidate.subject ?? "Answer key"}</h2>
               <p>{candidate.sourceFilename} · PDF page {candidate.sourcePage} · {candidate.extractionMethod}</p>
             </div>
-            <span className="pill pill-review">{candidate.mappings.length} mapping(s)</span>
+            <div className="answer-candidate-header-actions">
+              <span className="pill pill-review">{candidate.mappings.length} mapping(s)</span>
+              <button className="button button-outline button-small" onClick={() => verifyAllUnambiguous(candidate)}>
+                Verify all unambiguous
+              </button>
+            </div>
           </div>
 
           <div className="answer-candidate-target">
@@ -311,7 +367,7 @@ export default function AnswerKeyReviewer({
               const answerFormatSupported = Boolean(
                 match.selectedQuestion && isSupportedAnswerFormat(match.selectedQuestion, mapping.answerRaw),
               );
-              const canVerify = canVerifyAnswerMapping(draftPackage, currentCandidate, mapping) && answerFormatSupported;
+              const canVerify = canVerifyAnswerMapping(draftPackage, currentCandidate, mapping) && answerFormatSupported && Boolean(match.selectedQuestion && mappingMatchCounts.get(match.selectedQuestion.id) === 1);
               const selectedId = mapping.linkedQuestionId ?? match.selectedQuestion?.id ?? "";
               const selectedQuestion = match.selectedQuestion ??
                 draftPackage.questions?.find((question) => question.id === mapping.linkedQuestionId);
