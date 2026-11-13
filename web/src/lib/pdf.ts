@@ -34,8 +34,10 @@ function detectColumnSplit(lines: TextLine[], pageWidth: number): number | undef
     return undefined;
   }
 
+  // A y-row may already contain text from both columns. Use every item origin
+  // to find the gutter, then require several distinct rows on both sides.
   const starts = lines
-    .map((line) => Math.min(...line.parts.map((part) => part.x)))
+    .flatMap((line) => line.parts.map((part) => part.x))
     .sort((left, right) => left - right);
 
   let bestGap = 0;
@@ -44,19 +46,18 @@ function detectColumnSplit(lines: TextLine[], pageWidth: number): number | undef
     const gap = starts[index] - starts[index - 1];
     const split = (starts[index] + starts[index - 1]) / 2;
     const relativeSplit = split / pageWidth;
-    const leftLines = index;
-    const rightLines = starts.length - index;
-
-    // Column starts usually sit apart by a sizeable central gutter. Requiring
-    // several lines on both sides avoids splitting one-off indented equations.
     if (
-      gap > pageWidth * 0.15 &&
-      relativeSplit > 0.22 &&
-      relativeSplit < 0.68 &&
-      leftLines >= 3 &&
-      rightLines >= 3 &&
-      gap > bestGap
+      gap <= pageWidth * 0.08 ||
+      relativeSplit <= 0.22 ||
+      relativeSplit >= 0.68 ||
+      gap <= bestGap
     ) {
+      continue;
+    }
+
+    const leftLines = lines.filter((line) => line.parts.some((part) => part.x < split)).length;
+    const rightLines = lines.filter((line) => line.parts.some((part) => part.x >= split)).length;
+    if (leftLines >= 3 && rightLines >= 3) {
       bestGap = gap;
       bestSplit = split;
     }
