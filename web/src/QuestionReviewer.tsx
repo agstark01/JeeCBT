@@ -4,7 +4,6 @@ import type {
   QuestionDraft,
   QuestionSubject,
   QuestionType,
-  Subject,
 } from "./types";
 
 interface QuestionReviewerProps {
