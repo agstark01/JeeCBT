@@ -232,6 +232,10 @@ export function segmentQuestions(
 
     for (const page of document.pages) {
       if (page.likelyScanned) scannedPages += 1;
+      if (current && page.pageNumber > current.sourcePageStart) {
+        // Keep image-only pages inside the question span so their diagrams are captured.
+        current.sourcePageEnd = page.pageNumber;
+      }
       const pageLines = linesForPage(page);
 
       for (let lineIndex = 0; lineIndex < pageLines.length; lineIndex += 1) {
@@ -317,9 +321,6 @@ export function segmentQuestions(
         }
       }
 
-      if (current && page.pageNumber > current.sourcePageStart && page.lines?.length === 0) {
-        current.sourcePageEnd = page.pageNumber;
-      }
     }
 
     finishCurrent();
