@@ -16,7 +16,7 @@ The workflow runs entirely in the browser and saves the resulting records inside
 - Repeated numbering resets (for example, Q1 after Q18) create a new numbering block. The block is a structural hint, not a claim about the subject.
 - Explicit standalone subject labels can be used. If no subject label is present, the subject remains `UNASSIGNED`; the parser does not infer subject order from JEE conventions.
 
-The current PDF text reconstruction detects a likely page gutter and emits the left column before the right column. It remains a heuristic and should be checked against actual PDFs that use complex tables, equations, or unusual layouts.
+The PDF importer stores normalized positioned text-line geometry and detects a likely page gutter. The reviewer renders the original PDF page locally and crops question and option regions from that rendered page, preserving diagrams, equations, tables and typography. Crop boundaries still depend on detected question markers and option labels, so unusual layouts need validation.
 
 ## Review interface
 
@@ -25,6 +25,7 @@ The reviewer provides:
 - editable question number, subject, question type and extracted text;
 - source PDF filename and page provenance;
 - an embedded local PDF preview at the question's first page;
+- a full visual question crop and a separate option-region crop rendered from the original PDF locally in the browser;
 - bulk subject assignment by numbering block;
 - bulk subject assignment by inclusive question-number range within a selected source PDF and optional block;
 - optional linking to an answer-key candidate mapping with the same question number.
@@ -51,15 +52,15 @@ A question number alone is never a unique key. The containing package and source
 - The marker parser does not cover every examination layout or arbitrary inline question markers.
 - Scanned/image-only pages are flagged; OCR is not included.
 - Mathematical notation is retained as extracted text only. It is not yet normalized into MathML/LaTeX.
-- Diagrams, figures, tables and multi-page visual regions are not cropped into standalone question assets. The original PDF and page references remain available for review.
+- Visual question and option crops are generated on demand from the local PDF; raster crops are not sent to a server. Option crops depend on recognizable A–D or 1–4 option markers. Scanned/image-only pages do not yet have reliable marker geometry because OCR is not included.
 - Shared instructions before Q1 are not attached to a question; a warning prompts the reviewer to consult the source.
-- Subject detection is intentionally conservative. Use the block/range tools or per-question subject control where headings are absent.
+- Subject detection is intentionally conservative. Use the block/range tools or per-question subject control where headings are absent. Explicit section headings with type descriptions, question-number ranges, and question-level instructions can infer question type and marking values. Question-level instructions take precedence; conflicting rules remain unknown. The parser does not infer single-vs-multiple choice from option labels alone.
 - The current question review state does not verify answer-key mappings or marking schemes.
 
 ## Next prerequisites
 
-1. Add richer page geometry and layout-aware segmentation for multi-column text, diagrams and tables.
+1. Improve crop boundary detection for nested columns, floating diagrams, shared figures and options that continue across pages.
 2. Add local OCR for scanned pages.
-3. Extract and preserve question figures and shared section instructions.
+3. Extend section-rule inference to more publisher-specific wording while retaining explicit evidence and conflict handling.
 4. Add an answer-key mapping reviewer with explicit verification and ambiguity handling.
 5. Make mixed-paper question sampling depend only on reviewed question records and verified answer mappings.
