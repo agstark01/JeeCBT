@@ -297,3 +297,23 @@ h1 span { color: #7890bd; font-weight: 500; }
   .subject-options { grid-template-columns: 1fr; }.simple-heading { flex-direction: row; flex-wrap: wrap; }
   .footer { flex-direction: column; gap: 8px; }.danger-zone { align-items: start; flex-direction: column; gap: 12px; }
 }
+
+
+@media (max-width: 900px) {
+  .review-layout { grid-template-columns: minmax(200px, .65fr) minmax(0, 1.35fr); }
+  .range-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .review-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .review-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .review-layout { grid-template-columns: 1fr; }
+  .review-question-list { max-height: 360px; }
+  .range-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .review-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .block-assignment { align-items: start; flex-direction: column; }
+  .block-assignment select { width: 100%; }
+  .review-editor { padding: 14px; }
+  .source-preview iframe { height: 390px; }
+  .review-actions { align-items: stretch; flex-direction: column; }
+  .review-actions .button { width: 100%; }
+}
