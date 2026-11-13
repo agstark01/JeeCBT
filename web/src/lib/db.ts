@@ -33,3 +33,14 @@ export async function deletePaperPackage(id: string, ownerId: string): Promise<v
 export async function clearLocalData(ownerId: string): Promise<void> {
   await localDb.paperPackages.where("ownerId").equals(ownerId).delete();
 }
+
+export async function moveGuestPackagesToAccount(ownerId: string): Promise<void> {
+  if (!ownerId || ownerId === "local") return;
+  await localDb.transaction("rw", localDb.paperPackages, async () => {
+    const guestPackages = await localDb.paperPackages.where("ownerId").equals("local").toArray();
+    for (const record of guestPackages) {
+      record.ownerId = ownerId;
+      await localDb.paperPackages.put(record);
+    }
+  });
+}
