@@ -3,6 +3,7 @@ import { isSupportedAnswerFormat } from "./lib/scoring";
 import {
   canVerifyAnswerMapping,
   evaluateAnswerMapping,
+  reassignAnswerKeySource,
   setMappingReviewStatus,
   updateMappingAnswer,
 } from "./lib/answer-review";
@@ -190,15 +191,9 @@ export default function AnswerKeyReviewer({
   };
 
   const setCandidateSource = (candidate: AnswerKeyCandidate, sourceDocumentId: string) => {
-    updateCandidate(candidate.id, (current) => ({
-      ...current,
-      sourceDocumentId: sourceDocumentId || undefined,
-      mappings: current.mappings.map((mapping) => ({
-        ...mapping,
-        sourceDocumentId: sourceDocumentId || undefined,
-        reviewStatus: "proposed",
-      })),
-    }));
+    const sourceDocument = draftPackage.documents.find((document) => document.id === sourceDocumentId);
+    if (sourceDocumentId && !sourceDocument) return;
+    updateCandidate(candidate.id, (current) => reassignAnswerKeySource(current, sourceDocument));
   };
 
   const save = async () => {
