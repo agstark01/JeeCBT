@@ -142,19 +142,52 @@ export function canVerifyAnswerMapping(
   candidate: AnswerKeyCandidate,
   mapping: AnswerMapping,
 ): boolean {
-  const document = paperPackage.documents.find((item) =>
-    item.id === (mapping.sourceDocumentId ?? candidate.sourceDocumentId)
+  const sourceDocumentId = mapping.sourceDocumentId ?? candidate.sourceDocumentId;
+  const document = paperPackage.documents.find((item) => item.id === sourceDocumentId);
+  const sourceIdentityIsConsistent = Boolean(
+    document &&
+    candidate.sourceDocumentId === document.id &&
+    candidate.sourceFilename === document.filename &&
+    mapping.sourceFilename === document.filename &&
+    (!mapping.sourceDocumentId || mapping.sourceDocumentId === candidate.sourceDocumentId) &&
+    document.pages.some((page) => page.pageNumber === candidate.sourcePage) &&
+    document.pages.some((page) => page.pageNumber === mapping.sourcePage),
   );
   const match = evaluateAnswerMapping(paperPackage, candidate, mapping);
   return Boolean(
     mapping.answerRaw.trim() &&
     mapping.questionNumber > 0 &&
-    document &&
-    mapping.sourceFilename &&
-    mapping.sourcePage >= 1 &&
+    sourceIdentityIsConsistent &&
     match.status === "matched" &&
     match.selectedQuestion,
   );
+}
+
+/**
+ * Reassigning a key candidate to a different PDF invalidates every previous
+ * mapping approval and link. Filename and document ID are updated together so
+ * the displayed provenance cannot silently point at the old PDF.
+ */
+export function reassignAnswerKeySource(
+  candidate: AnswerKeyCandidate,
+  sourceDocument?: PaperPackage["documents"][number],
+): AnswerKeyCandidate {
+  const sourceDocumentId = sourceDocument?.id;
+  const sourceFilename = sourceDocument?.filename ?? candidate.sourceFilename;
+  return {
+    ...candidate,
+    sourceDocumentId,
+    sourceFilename,
+    reviewRequired: true,
+    mappings: candidate.mappings.map((mapping) => ({
+      ...mapping,
+      sourceDocumentId,
+      sourceFilename,
+      linkedQuestionId: undefined,
+      reviewStatus: "proposed",
+      reviewNote: undefined,
+    })),
+  };
 }
 
 export function updateMappingAnswer(
