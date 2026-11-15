@@ -38,6 +38,8 @@ function normalizeLegacyPackage(paperPackage: PaperPackage): PaperPackage {
       );
       const sourceDocumentId = candidate.sourceDocumentId ??
         (sourceMatches.length === 1 ? sourceMatches[0].id : undefined);
+      const sourceDocument = paperPackage.documents.find((document) => document.id === sourceDocumentId);
+      const sourceFilename = sourceDocument?.filename ?? candidate.sourceFilename;
       const sourceIsQuestionPaper = questionDocuments.some((document) => document.id === sourceDocumentId);
       const targetDocumentId = candidate.targetDocumentId ??
         (sourceIsQuestionPaper
@@ -48,12 +50,19 @@ function normalizeLegacyPackage(paperPackage: PaperPackage): PaperPackage {
       return {
         ...candidate,
         sourceDocumentId,
+        sourceFilename,
         targetDocumentId,
-        mappings: candidate.mappings.map((mapping, index) => ({
-          ...mapping,
-          id: mapping.id ?? candidate.id + "-mapping-" + index,
-          sourceDocumentId: mapping.sourceDocumentId ?? sourceDocumentId,
-        })),
+        mappings: candidate.mappings.map((mapping, index) => {
+          const mappingDocument = paperPackage.documents.find((document) =>
+            document.id === mapping.sourceDocumentId
+          ) ?? sourceDocument;
+          return {
+            ...mapping,
+            id: mapping.id ?? candidate.id + "-mapping-" + index,
+            sourceDocumentId: mapping.sourceDocumentId ?? sourceDocumentId,
+            sourceFilename: mappingDocument?.filename ?? mapping.sourceFilename,
+          };
+        }),
       };
     }),
   };
