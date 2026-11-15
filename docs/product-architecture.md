@@ -31,7 +31,7 @@ The repository ignore rules exclude PDF files, local upload directories, virtual
 The recommended default is to process and retain a user's paper package locally in the browser:
 - original PDFs remain on the user's device;
 - extracted structured question data is stored in IndexedDB;
-- test configuration, attempt state, selected answers, and results are stored in IndexedDB;
+- submitted attempts, their selected answers, and results are stored in IndexedDB; in-progress answers remain in application memory until submission;
 - no upload is sent to the JeeCBT application server unless a future feature explicitly requires it and the user consents.
 
 IndexedDB is preferred over localStorage because question sets and embedded figures may be larger than simple preference values. The app must provide a Delete local data action and explain that clearing browser site data can also erase unsynced attempts.
@@ -108,17 +108,17 @@ The examination interface should provide:
 - mark-for-review and clear-response controls;
 - configurable question count and subject count/distribution;
 - configured test duration;
-- autosave of answers and attempt state;
-- automatic submission when the deadline is reached;
+- manual submission and automatic submission when the browser-local countdown reaches zero;
+- persistence of the submitted attempt and its score snapshot;
 - immediate result and question-wise review after submission.
 
-For browser-local practice, the timer must survive a page refresh and derive remaining time from a stored deadline, not count down only in memory. A browser-local timer is not tamper-proof against a user who controls the device clock or developer tools. A high-integrity/public competitive exam mode requires a server-authoritative clock and server-side answer-key isolation.
+Current limitation: the countdown and in-progress answers are held in browser memory. Reloading or closing the page before submission loses the in-progress attempt; the timer does not recover from a persisted deadline. A browser-local timer is not tamper-proof against a user who controls the device clock or developer tools. Reload recovery is future work. A high-integrity/public competitive exam mode requires a server-authoritative clock and server-side answer-key isolation.
 
 ## Parser and question schema
 
 Document ingestion, question segmentation, answer-key discovery, question typing, and marking are independent stages.
 
-A question's stable identity must include exam/session, paper, subject or section, and local question number. Repeated Q.1 labels must be valid when subjects or sections restart numbering.
+Within the current local model, a question's identity is scoped by its containing PaperPackage and source question-paper document, then refined by paper/section, subject, numbering block, and local question number. Repeated Q1 labels are valid when subjects or sections restart numbering. A question number alone is never used to join an answer key.
 
 Answer values must be preserved as raw strings and then normalized using the question type. Examples include:
 - single option: A;
@@ -134,9 +134,9 @@ A detected key is a proposed extraction, not verified truth. Every imported pape
 - Embedded numbered-key and subject-wise Ques./Ans. table layouts are supported as initial rule-based adapters. The parser is intentionally conservative.
 - Marker-based question segmentation, positioned visual question/option crops, editable question review, subject block/range assignment, and source-page provenance are implemented.
 - Question-type/marking-rule inference supports a limited set of explicit question, section and question-range instructions. Unclear or conflicting rules remain unclassified.
-- Answer-key review supports source/target document selection, local PDF source preview, raw answer edits, exact question reconciliation, ambiguity resolution and independent verification.
+- Answer-key review supports source/target document selection, local PDF source preview, raw answer edits, exact question reconciliation, ambiguity resolution and independent verification. Source document ID, filename and page provenance are retained for every mapping; changing the source resets stale links and approval.
 - Test selection filters to verified question text plus one verified package-scoped answer mapping. Per-subject sampling is without replacement.
 - The browser CBT runner supports single choice, exact-set multi-select and numeric input, a local countdown, navigation, manual/time-expiry submission, total score and question-wise result display.
-- Submitted attempts are stored in IndexedDB. In-progress responses are not yet autosaved, so a reload before submission loses that attempt.
+- Dexie schema version 2 stores submitted attempts in IndexedDB. In-progress responses are not yet autosaved, so a reload before submission loses that attempt.
 - The current scoring model uses question-specific marks when available and configurable fallback marks otherwise. JEE Advanced partial-credit multiple-correct schemes and other exam-specific numeric/response formats remain future work.
 - Local OCR for scanned pages, fully general PDF layout parsing, Drive backup, in-progress attempt recovery, and a server-authoritative/proctored timer are not implemented.
