@@ -4,6 +4,7 @@ import {
   evaluateAnswerMapping,
   findMappingQuestionCandidates,
   isMappingScoringEligible,
+  reassignAnswerKeySource,
   setMappingReviewStatus,
   updateMappingAnswer,
 } from "./answer-review";
@@ -102,6 +103,99 @@ function packageWith(questions: QuestionDraft[]): PaperPackage {
 }
 
 describe("answer-key reconciliation", () => {
+  it("does not reconcile a repeated question number from a different package", () => {
+    const packageA = packageWith([
+      question("paper-a-q1", 1, "PHYSICS", 1, "question-doc-a"),
+    ]);
+    packageA.id = "package-a";
+    packageA.documents = [
+      doc("question-doc-a", "paper-a.pdf", "question_paper"),
+      doc("key-doc-a", "key-a.pdf", "answer_key"),
+    ];
+
+    const packageB = packageWith([
+      question("paper-b-q1", 1, "PHYSICS", 1, "question-doc-b"),
+    ]);
+    packageB.id = "package-b";
+    packageB.documents = [
+      doc("question-doc-b", "paper-b.pdf", "question_paper"),
+      doc("key-doc-b", "key-b.pdf", "answer_key"),
+    ];
+
+    const keyFromB = candidate({
+      id: "candidate-b",
+      sourceDocumentId: "key-doc-b",
+      targetDocumentId: "question-doc-b",
+      sourceFilename: "key-b.pdf",
+    });
+    const answerFromB = mapping("A", {
+      sourceDocumentId: "key-doc-b",
+      sourceFilename: "key-b.pdf",
+    });
+
+    expect(evaluateAnswerMapping(packageA, keyFromB, answerFromB).status).toBe("mismatched");
+    expect(evaluateAnswerMapping(packageB, keyFromB, answerFromB).status).toBe("matched");
+  });
+
+  it("requires candidate and mapping provenance to agree with the retained PDF and page", () => {
+    const pkg = packageWith([question("physics-q1", 1, "PHYSICS", 1)]);
+    const key = candidate();
+    const linked = mapping("B", { linkedQuestionId: "physics-q1" });
+
+    expect(canVerifyAnswerMapping(pkg, key, linked)).toBe(true);
+    expect(canVerifyAnswerMapping(pkg, key, {
+      ...linked,
+      sourceFilename: "different-key.pdf",
+    })).toBe(false);
+    expect(canVerifyAnswerMapping(pkg, key, {
+      ...linked,
+      sourcePage: 2,
+    })).toBe(false);
+    expect(canVerifyAnswerMapping(pkg, key, {
+      ...linked,
+      sourceDocumentId: "other-key-doc",
+    })).toBe(false);
+  });
+
+  it("updates filename and resets links and approval when the source PDF changes", () => {
+    const original = candidate({
+      mappings: [mapping("BC", {
+        linkedQuestionId: "physics-q1",
+        reviewStatus: "verified",
+        reviewNote: "old source reviewed",
+      })],
+    });
+    const revisedDocument = doc("revised-key-doc", "revised-key.pdf", "answer_key");
+    const updated = reassignAnswerKeySource(original, revisedDocument);
+
+    expect(updated.sourceDocumentId).toBe("revised-key-doc");
+    expect(updated.sourceFilename).toBe("revised-key.pdf");
+    expect(updated.mappings[0]).toMatchObject({
+      sourceDocumentId: "revised-key-doc",
+      sourceFilename: "revised-key.pdf",
+      reviewStatus: "proposed",
+    });
+    expect(updated.mappings[0].linkedQuestionId).toBeUndefined();
+    expect(updated.mappings[0].reviewNote).toBeUndefined();
+  });
+
+  it("supports verified, rejected and reopened mapping status transitions", () => {
+    const pkg = packageWith([
+      question("physics-q1", 1, "PHYSICS", 1, "question-doc", "verified"),
+    ]);
+    const key = candidate();
+    const proposed = mapping("B", { linkedQuestionId: "physics-q1" });
+    const verified = setMappingReviewStatus(pkg, key, proposed, "verified");
+    const rejected = setMappingReviewStatus(pkg, key, verified, "rejected");
+    const reopened = setMappingReviewStatus(pkg, key, rejected, "proposed");
+
+    expect(verified.reviewStatus).toBe("verified");
+    expect(rejected.reviewStatus).toBe("rejected");
+    expect(reopened.reviewStatus).toBe("proposed");
+    expect(isMappingScoringEligible(pkg, key, rejected)).toBe(false);
+    expect(isMappingScoringEligible(pkg, key, reopened)).toBe(false);
+  });
+
   it("uses subject to distinguish repeated Q1 values across subject blocks", () => {
     const pkg = packageWith([
       question("physics-q1", 1, "PHYSICS", 1),

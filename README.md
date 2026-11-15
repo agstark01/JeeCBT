@@ -1,102 +1,108 @@
 # JeeCBT
 
-JeeCBT is an open-source, local-first JEE Main and JEE Advanced practice examination platform.
+JeeCBT is an open-source, local-first JEE Main and JEE Advanced practice examination platform. Import a question paper and its answer key, review the extracted questions and answers, build a timed test, and inspect the resulting score without uploading exam content to a JeeCBT server.
 
-The goal is to let a student import a previous-year question paper and its answer key (embedded in the same PDF or supplied separately), prepare a structured question bank, configure a timed test, attempt it in a computer-based examination interface, and receive an immediate result.
-
-**Privacy model:** source PDFs, extracted questions, answer keys, attempts, and scores remain in the user's browser. GitHub contains application source code and documentation only.
-
-## Product direction
-
-- Generic document ingestion, not a hard-coded PDF format for each exam.
-- Scan every page of every selected document for answer keys.
-- Support answer keys embedded in the question paper and separate answer-key PDFs.
-- Preserve subject, paper/section, question number, and source-page provenance.
-- Preserve answer values as raw strings: single options, multiple options, and numeric responses.
-- Require human verification of extracted content before scoring.
-- Support paper-specific question types and marking rules.
-- Local-first data, with optional Google authentication and separately opt-in Drive backup.
+**Privacy model:** original PDFs, extracted paper content, question records, answer mappings, review state, and submitted attempts are stored in the browser's IndexedDB database. GitHub contains application source, documentation, and synthetic tests only.
 
 ## Current implementation
 
-### Browser application
+The static browser application is in `web/` and uses React, TypeScript, Vite, PDF.js, and Dexie.
 
-The web client is a static React + TypeScript + Vite application in the web directory.
+- PDF text and positioned line geometry are extracted locally in the browser.
+- Original PDF Blobs, extracted pages, question drafts, answer-key candidates, mapping provenance, verification state, and question-to-answer links are stored in IndexedDB.
+- The initial answer-key adapters recognize numbered parenthesized answer lists and subject-wise `Ques.` / `Ans.` tables. Extracted answers remain raw strings and start as proposals.
+- Question segmentation recognizes common line-start markers and creates source-page-aware drafts. The question reviewer displays local visual question and option crops rendered from the original PDF.
+- Question-type and marking-rule inference uses explicit question, section, and question-range instructions. Evidence is retained; conflicting or unsupported rules remain unclassified.
+- The answer-key reviewer lets the user choose the source key PDF and target question-paper PDF, inspect the original key page, edit raw answers, reconcile mappings, resolve ambiguity, and independently verify or reject each mapping.
+- Reconciliation is confined to the containing `PaperPackage` and selected question-paper document. It uses question number plus available subject, paper, section, and numbering-block metadata; a question number alone is never a global key.
+- The test builder selects only questions with verified text and exactly one verified, package-scoped, supported answer mapping. It reports subject-pool shortfalls and samples without replacement.
+- The browser CBT runner supports single choice, exact-set multiple choice, and numerical responses. Submitted attempts and score details are saved in IndexedDB.
 
-- PDF.js extracts selectable PDF text in the browser using its worker.
-- Text fragments are grouped by page coordinates to reconstruct lines and table rows.
-- Browser-side parsing detects initial numbered answer-key and subject-wise Ques./Ans. table formats.
-- Dexie stores original PDF Blobs, extracted page text, and candidate mappings in IndexedDB.
-- The paper library displays source documents, detected answer-key candidates, and OCR warnings.
-- Optional Google Identity Services sign-in validates a Google ID token in the browser and uses the subject as a local IndexedDB namespace. It does not upload papers or sync data.
-- The answer-key reviewer edits raw answers, assigns each candidate to its exact question-paper PDF, resolves ambiguous question matches, and verifies answer mappings independently of question text.
-- The test builder counts only fully verified question/answer pairs from the selected paper packages. It samples by subject quota without replacement and refuses to start when any quota has a shortfall.
-- Initial question segmentation recognizes common line-start question markers, stores normalized line geometry, and creates draft records with source-page provenance, numbering blocks, and on-demand visual crop regions.
-- The local question reviewer supports visual question and option crops, editing extracted text and metadata, assigning subjects by block or question-number range, and verifying question text independently of answer keys.
-- Question verification and answer-key verification are separate. A linked answer candidate is still unverified.
-- Starting an exam remains disabled until question records and their answer mappings have been reviewed and made eligible for scoring.
+## Typical workflow
 
-Run the browser app:
+1. Import the question paper and its answer-key PDF(s) together as one paper package.
+2. Segment the question paper and inspect each question against its local PDF preview/crop. Correct its text, subject, type, and marking metadata, then verify the question.
+3. Open answer-key review. Confirm the source PDF and target question paper, inspect the key page, correct any raw answer, resolve the exact question match, then verify or reject the mapping.
+4. Configure subject quotas, duration, shuffle preference, and fallback marks. Only fully verified question/key pairs count toward the available pool.
+5. Attempt the timed test and review the score and question-wise answer comparison.
 
-    cd web
-    cp .env.example .env.local
-    npm install
-    npm run dev
+Question-text verification and answer-key verification are independent gates. Neither one implies the other. Proposed, rejected, missing, ambiguous, mismatched, unsupported, or otherwise unverified mappings are excluded from scoring.
 
-See web/README.md for Google Identity Services setup and local development details.
+## Supported scoring and limitations
 
-### Parser reference backend
+- **Single choice:** one option label must match.
+- **Multiple correct:** the complete option set must match; option order is ignored.
+- **Numerical:** parsed numeric values are compared using a small floating-point tolerance.
+- Question-specific positive/negative marks take precedence over configurable test defaults (initially +4 / -1).
 
-The Python/FastAPI directory contains a local development/reference implementation and synthetic tests. Its PDF-upload endpoint is not used by the browser app and must not be deployed as the document-ingestion path for the strict local-first product.
+Current limitations:
 
-Run reference tests:
+- Scanned/image-only PDFs need OCR; local OCR is not implemented.
+- Question segmentation and visual crop boundaries are marker/layout heuristics, not a universal PDF parser. Complex columns, shared diagrams/instructions, and unusual option layouts need manual source-page review.
+- JEE Advanced partial-credit schemes for multiple-correct questions are not implemented; multiple-correct scoring uses exact-set matching.
+- Numeric ranges, units, symbolic equivalence, matrix-match, integer-grid, and other specialized answer formats are not supported.
+- In-progress test responses are held in memory and are lost if the page reloads before submission. Only submitted attempts are persisted.
+- The countdown is browser-local and is not proctored or tamper-proof.
+- Google sign-in only selects a local IndexedDB namespace. It does not synchronize or back up papers or attempts. Google Drive backup is not implemented.
 
-    cd backend
-    python -m venv .venv
-    source .venv/bin/activate
-    pip install -e ".[dev]"
-    pytest
+## Run locally
+
+Requirements: Node.js 22.12+ and npm.
+
+```bash
+cd web
+cp .env.example .env.local
+npm install
+npm run dev
+```
+
+Validation scripts:
+
+```bash
+npm run typecheck
+npm test
+npm audit
+npm run build
+```
+
+The Python/FastAPI backend is a development/reference parser and synthetic-test environment. The browser client does not use its PDF-upload endpoint.
 
 ## Data boundaries
 
-GitHub is never a storage location for:
-- uploaded question papers or answer keys;
-- extracted real questions or answer mappings;
-- user responses, exam attempts, scores, or personal data;
-- Google credentials or secrets.
+JeeCBT must never commit or upload user-provided question papers, answer keys, extracted real questions, answer mappings, responses, scores, credentials, or personal data. Do not add real exam material to fixtures. Tests must use synthetic records or fixtures explicitly licensed for redistribution.
 
-The .gitignore excludes PDF files, local upload directories, virtual environments, and local environment files. Only example environment templates are tracked.
+IndexedDB is local to the browser profile and device. Clearing browser site data can delete it. Google sign-in does not provide cloud backup or synchronization. The current app stores submitted attempts locally; it does not persist an in-progress attempt across reloads.
 
-The browser stores paper packages and submitted attempts in IndexedDB. In-progress exam answers are currently held in memory until submission, so reloading or closing the exam before submission loses that attempt. Data is specific to the browser and device. Google sign-in alone does not provide backup or synchronization. Google Drive integration is a separate future opt-in feature.
+## Documentation
 
-See docs/local-first-browser-architecture.md for the data model and privacy boundaries. See [question segmentation and review](docs/question-segmentation-review.md) for the current parser scope and limitations.
+- [Local-first browser architecture](docs/local-first-browser-architecture.md)
+- [Question segmentation and review](docs/question-segmentation-review.md)
+- [Answer-key review and reconciliation](docs/answer-key-review.md)
+- [Mixed-paper test builder and scoring](docs/mixed-paper-test-builder.md)
+- [Product architecture](docs/product-architecture.md)
+- [Web client setup and workflow](web/README.md)
 
 ## Development roadmap
 
-- [x] Multi-PDF local upload and PDF.js text extraction
-- [x] Embedded answer-key discovery for numbered parenthesized answer lists
-- [x] Subject-wise Physics/Chemistry/Maths Ques./Ans. table detection
-- [x] Separate answer-key document role support
-- [x] Local IndexedDB storage and paper library
-- [x] Optional Google sign-in with per-account local data namespace
-- [ ] OCR for scanned pages
-- [x] Initial marker-based question segmentation and editable question-review workflow (layout-dependent; not complete for every PDF format)
-- [x] Initial explicit section/range/question-instruction inference for question type and marking rules (evidence retained; conflicts remain unclassified)
-- [ ] Robust subject/section detection, OCR, and extraction of diagrams, tables, equations, and shared instructions
-- [x] Local visual question and option crops rendered from original PDF pages (layout heuristics; not OCR)
-- [ ] Extraction of mathematical expressions, chemical notation, tables, and diagrams
-- [ ] Editable review and verification workflow
-- [ ] Extensible question type and marking-scheme registry
-- [x] Multi-paper test configuration with per-subject quotas, duration and shuffle preference (configuration preview only)
-- [ ] Verified question selection across selected papers, random sampling without replacement, and exam launch
-- [ ] JEE-style exam interface, countdown, autosave, and auto-submission
-- [ ] Deterministic evaluation and immediate subject-wise results
-- [ ] Local attempt history and analytics
-- [ ] Optional Google Drive progress backup
+- [x] Multi-PDF local import and PDF.js text extraction
+- [x] Initial embedded and separate answer-key discovery
+- [x] IndexedDB paper-package storage and library
+- [x] Marker-based question segmentation and local question review
+- [x] Visual question and option crops rendered from original PDFs
+- [x] Explicit section/range/question-instruction inference
+- [x] Independent answer-key review and package-scoped question reconciliation
+- [x] Verified question/key eligibility, subject quotas, and sampling without replacement
+- [x] Local timed CBT runner, scoring, results, and submitted-attempt history
+- [ ] Local OCR for scanned PDFs
+- [ ] More robust parsing for publisher-specific layouts, shared instructions, equations, tables, and complex diagrams
+- [ ] JEE Advanced partial-credit and additional exam-specific scoring schemes
+- [ ] Numeric range, unit-aware, symbolic, and specialized response formats
+- [ ] In-progress attempt autosave and reload recovery
+- [ ] Optional, separately consented backup/export and cross-device synchronization
 
 ## Contributing
 
-Contributions are welcome. Open an issue before large architectural changes. Do not commit copyrighted exam papers, answer keys, solutions, or diagrams unless redistribution is explicitly permitted. Automated tests should generate synthetic PDFs or use fixtures that are licensed for redistribution.
+Open an issue before large architectural changes. Do not commit copyrighted exam papers, answer keys, solutions, or diagrams unless redistribution is explicitly permitted. Keep all user exam content local by default.
 
 ## License
 

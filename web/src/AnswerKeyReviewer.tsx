@@ -3,6 +3,7 @@ import { isSupportedAnswerFormat } from "./lib/scoring";
 import {
   canVerifyAnswerMapping,
   evaluateAnswerMapping,
+  reassignAnswerKeySource,
   setMappingReviewStatus,
   updateMappingAnswer,
 } from "./lib/answer-review";
@@ -37,6 +38,8 @@ function normalizeLegacyPackage(paperPackage: PaperPackage): PaperPackage {
       );
       const sourceDocumentId = candidate.sourceDocumentId ??
         (sourceMatches.length === 1 ? sourceMatches[0].id : undefined);
+      const sourceDocument = paperPackage.documents.find((document) => document.id === sourceDocumentId);
+      const sourceFilename = sourceDocument?.filename ?? candidate.sourceFilename;
       const sourceIsQuestionPaper = questionDocuments.some((document) => document.id === sourceDocumentId);
       const targetDocumentId = candidate.targetDocumentId ??
         (sourceIsQuestionPaper
@@ -47,12 +50,19 @@ function normalizeLegacyPackage(paperPackage: PaperPackage): PaperPackage {
       return {
         ...candidate,
         sourceDocumentId,
+        sourceFilename,
         targetDocumentId,
-        mappings: candidate.mappings.map((mapping, index) => ({
-          ...mapping,
-          id: mapping.id ?? candidate.id + "-mapping-" + index,
-          sourceDocumentId: mapping.sourceDocumentId ?? sourceDocumentId,
-        })),
+        mappings: candidate.mappings.map((mapping, index) => {
+          const mappingDocument = paperPackage.documents.find((document) =>
+            document.id === mapping.sourceDocumentId
+          ) ?? sourceDocument;
+          return {
+            ...mapping,
+            id: mapping.id ?? candidate.id + "-mapping-" + index,
+            sourceDocumentId: mapping.sourceDocumentId ?? sourceDocumentId,
+            sourceFilename: mappingDocument?.filename ?? mapping.sourceFilename,
+          };
+        }),
       };
     }),
   };
@@ -190,15 +200,9 @@ export default function AnswerKeyReviewer({
   };
 
   const setCandidateSource = (candidate: AnswerKeyCandidate, sourceDocumentId: string) => {
-    updateCandidate(candidate.id, (current) => ({
-      ...current,
-      sourceDocumentId: sourceDocumentId || undefined,
-      mappings: current.mappings.map((mapping) => ({
-        ...mapping,
-        sourceDocumentId: sourceDocumentId || undefined,
-        reviewStatus: "proposed",
-      })),
-    }));
+    const sourceDocument = draftPackage.documents.find((document) => document.id === sourceDocumentId);
+    if (sourceDocumentId && !sourceDocument) return;
+    updateCandidate(candidate.id, (current) => reassignAnswerKeySource(current, sourceDocument));
   };
 
   const save = async () => {
